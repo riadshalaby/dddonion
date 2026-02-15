@@ -41,10 +41,7 @@ public class ArchitectureTest {
 
     /* --- Application: relaxed whitelist --- */
 
-    /**
-     * Application may depend on Domain (+ reactive APIs) and selected framework-neutral libs, plus a small set of
-     * Spring namespaces commonly used in the application layer.
-     */
+    /** Application may depend on Domain (+ reactive APIs) and selected framework-neutral libs. */
     @ArchTest
     static final ArchRule application_whitelist_dependencies = classes()
             .that()
@@ -64,21 +61,17 @@ public class ArchitectureTest {
                     // logging & annotations
                     "org.slf4j..",
                     "lombok..",
-                    // allow Spring transaction annotations and event publisher in application layer
-                    "org.springframework.transaction.annotation..",
-                    "org.springframework.context..", // ApplicationEventPublisher, events
-                    // optionally allow stereotype/lang annotations if you use them (@Service, @NonNull)
-                    "org.springframework.stereotype..",
-                    "org.springframework.lang..",
                     // optional: bean validation in app DTOs
                     "jakarta.validation..");
 
     /* --- Ports are interfaces --- */
 
-    /** Ports must be interfaces (domain repository ports). */
+    /** Ports must be interfaces (domain repository ports + application event publisher port). */
     @ArchTest
     static final ArchRule ports_are_interfaces = classes()
             .that()
+            .resideInAPackage("..application..event..")
+            .or()
             .resideInAPackage("..domain..*..repository..")
             .should()
             .beInterfaces();

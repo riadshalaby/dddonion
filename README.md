@@ -20,6 +20,7 @@ dddonion/
 |  |- domain/order/event/OrderPlaced
 |  \- domain/order/repository/OrderRepository (Port)
 |- dddonion-application
+|  |- application/event/DomainEventPublisherPort
 |  |- application/order/usecase/PlaceOrderUseCase
 |  \- application/order/service/PlaceOrderService
 |- dddonion-adapter-webflux
@@ -46,7 +47,7 @@ dddonion/
 2. Controller ruft `PlaceOrderUseCase`.
 3. `PlaceOrderService` erstellt ein `Order`-Aggregate und fuehrt `order.place()` aus.
 4. Repository-Port `OrderRepository` persistiert das Aggregate via R2DBC-Adapter.
-5. Entstandene Domain Events werden nach erfolgreichem Persistieren ueber `ApplicationEventPublisher` publiziert.
+5. Entstandene Domain Events werden nach erfolgreichem Persistieren ueber den Application-Port `DomainEventPublisherPort` publiziert.
 6. `DomainEventLoggingListener` verarbeitet diese Events asynchron.
 
 ## Technischer Stand
