@@ -76,6 +76,7 @@ curl -X POST "http://localhost:8080/orders?email=test@example.com&total=12.34"
 
 ## Hinweise
 - Das Monitor-Modul loggt Domain Events absichtlich mit Verzoegerung, um Asynchronitaet sichtbar zu machen.
+- Der Bootstrap erstellt die konfigurierte MariaDB-Datenbank (`spring.liquibase.url`) automatisch per `CREATE DATABASE IF NOT EXISTS`, bevor Liquibase ausgeführt wird.
 - Mit Lombok auf JDK 25 kann waehrend der Kompilierung eine `sun.misc.Unsafe`-Warnung erscheinen.
 
 ## License

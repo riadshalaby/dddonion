@@ -8,6 +8,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(scanBasePackages = "net.rsworld.example.dddonion")
 public class DddOnionApplication {
     static void main(String[] args) {
-        SpringApplication.run(DddOnionApplication.class, args);
+        SpringApplication app = new SpringApplication(DddOnionApplication.class);
+        app.addInitializers(new DatabaseBootstrapInitializer());
+        app.run(args);
     }
 }
