@@ -6,7 +6,6 @@ import static org.mockito.Mockito.*;
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import net.rsworld.example.dddonion.application.order.service.PlaceOrderService;
-import net.rsworld.example.dddonion.application.outbox.OutboxPort;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import net.rsworld.example.dddonion.domain.order.command.PlaceOrderCommand;
 import net.rsworld.example.dddonion.domain.order.model.Order;
@@ -22,18 +21,16 @@ import reactor.test.StepVerifier;
 class PlaceOrderServiceTest {
 
     @Test
-    @DisplayName("Publiziert Domain-Events und persistiert diese parallel im Outbox-Port")
-    void publishesDomainEventsToSpringAndPersistsToOutbox() {
+    @DisplayName("Publiziert Domain-Events nach erfolgreichem Persistieren")
+    void publishesDomainEventsToSpringAfterPersistence() {
         // arrange
         OrderRepository orders = mock(OrderRepository.class);
-        OutboxPort outbox = mock(OutboxPort.class);
         ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
 
         when(orders.save(any(Order.class)))
                 .thenAnswer(inv -> CompletableFuture.completedFuture((Order) inv.getArgument(0)));
-        when(outbox.save(any())).thenReturn(Mono.empty());
 
-        PlaceOrderService service = new PlaceOrderService(orders, outbox, publisher);
+        PlaceOrderService service = new PlaceOrderService(orders, publisher);
 
         PlaceOrderCommand cmd = new PlaceOrderCommand("john.doe@example.com", new BigDecimal("42.50"));
 
@@ -54,7 +51,6 @@ class PlaceOrderServiceTest {
         assert event instanceof DomainEvent;
 
         verify(orders, times(1)).save(any(Order.class));
-        verify(outbox, times(1)).save(any());
-        verifyNoMoreInteractions(orders, outbox, publisher);
+        verifyNoMoreInteractions(orders, publisher);
     }
 }

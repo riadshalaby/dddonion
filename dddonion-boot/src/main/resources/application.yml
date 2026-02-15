@@ -24,21 +24,10 @@ management:
         enabled: true
       group:
         readiness:
-          include: "r2dbc,outboxPublisherHealth"
+          include: "r2dbc"
         liveness:
           include: "ping"
-
-app:
-  topics:
-    orders: orders.events
-  outbox:
-    enabled: true
-    batch-size: 200
-    cleanup:
-      retention-days: 7
-      cron: "0 0 3 * * *"
 
 logging:
   level:
     org.springframework.r2dbc: warn
-    reactor.kafka: info

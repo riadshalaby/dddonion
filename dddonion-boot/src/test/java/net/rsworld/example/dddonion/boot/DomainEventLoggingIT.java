@@ -2,6 +2,7 @@ package net.rsworld.example.dddonion.boot;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -10,8 +11,7 @@ import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.core.OutputStreamAppender;
 import io.restassured.RestAssured;
 import java.io.ByteArrayOutputStream;
-import java.math.BigDecimal;
-import java.util.Map;
+import net.rsworld.example.dddonion.bootstrap.DddOnionApplication;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -26,9 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mariadb.MariaDBContainer;
 
 @Testcontainers
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"app.outbox.enabled=false"})
+@SpringBootTest(classes = DddOnionApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class DomainEventLoggingIT {
 
     @LocalServerPort
@@ -99,22 +97,22 @@ class DomainEventLoggingIT {
         logger.addAppender(appender);
 
         // Call HTTP endpoint to place an order
-        var body = Map.of("customerEmail", "john.doe@example.com", "total", new BigDecimal("42.50"));
         given().baseUri("http://localhost")
                 .port(port)
-                .contentType("application/json")
-                .body(body)
+                .queryParam("email", "john.doe@example.com")
+                .queryParam("total", "42.50")
                 .when()
                 .post("/orders")
                 .then()
-                .statusCode(201);
+                .statusCode(200);
 
-        String logged = out.toString();
-
-        assertThat(logged).contains("DomainEvent received");
-        assertThat(logged).contains("type=OrderPlaced");
-        assertThat(logged).contains("aggregateId=");
-        assertThat(logged).contains("sequence=1");
-        assertThat(logged).contains("occurredAt=");
+        await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() -> {
+            String logged = out.toString();
+            assertThat(logged).contains("DomainEvent received");
+            assertThat(logged).contains("type=OrderPlaced");
+            assertThat(logged).contains("aggregateId=");
+            assertThat(logged).contains("sequence=1");
+            assertThat(logged).contains("occurredAt=");
+        });
     }
 }

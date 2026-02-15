@@ -2,7 +2,6 @@ package net.rsworld.example.dddonion.bootstrap;
 
 import net.rsworld.example.dddonion.application.order.service.PlaceOrderService;
 import net.rsworld.example.dddonion.application.order.usecase.PlaceOrderUseCase;
-import net.rsworld.example.dddonion.application.outbox.OutboxPort;
 import net.rsworld.example.dddonion.domain.order.repository.OrderRepository;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.adapter.OrderRepositoryAdapter;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.repo.OrderR2dbcRepository;
@@ -22,7 +21,7 @@ public class BeansConfig {
 
     @Bean
     public PlaceOrderUseCase placeOrderUseCase(
-            OrderRepository orders, OutboxPort outbox, ApplicationEventPublisher applicationEventPublisher) {
-        return new PlaceOrderService(orders, outbox, applicationEventPublisher);
+            OrderRepository orders, ApplicationEventPublisher applicationEventPublisher) {
+        return new PlaceOrderService(orders, applicationEventPublisher);
     }
 }
