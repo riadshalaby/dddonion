@@ -75,12 +75,10 @@ public class ArchitectureTest {
 
     /* --- Ports are interfaces --- */
 
-    /** Ports must be interfaces (domain repository ports + application outbox port). */
+    /** Ports must be interfaces (domain repository ports). */
     @ArchTest
     static final ArchRule ports_are_interfaces = classes()
             .that()
-            .resideInAPackage("..application..outbox..")
-            .or()
             .resideInAPackage("..domain..*..repository..")
             .should()
             .beInterfaces();
@@ -125,7 +123,7 @@ public class ArchitectureTest {
 
     /* --- Adapter isolation --- */
 
-    /** Infrastructure adapter slices (web, persistence, outbox, ...) must not depend on each other. */
+    /** Infrastructure adapter slices (web, persistence, ...) must not depend on each other. */
     @ArchTest
     static final ArchRule adapters_should_not_depend_on_each_other = slices().matching(
                     "net.rsworld.example.dddonion.infrastructure.(*)..")
@@ -139,7 +137,7 @@ public class ArchitectureTest {
             .resideInAPackage("..infrastructure.web..")
             .should()
             .dependOnClassesThat()
-            .resideInAnyPackage("..infrastructure.outbox..", "..infrastructure.persistence..", "..monitor..");
+            .resideInAnyPackage("..infrastructure.persistence..", "..monitor..");
 
     /** Only the bootstrap module may declare @SpringBootApplication. */
     @ArchTest

@@ -4,6 +4,7 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.notNullValue;
 
 import io.restassured.RestAssured;
+import net.rsworld.example.dddonion.bootstrap.DddOnionApplication;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,9 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mariadb.MariaDBContainer;
 
 @Testcontainers
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"app.outbox.enabled=false"})
+@SpringBootTest(classes = DddOnionApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class WebfluxOrderApiIT {
 
     @Value("${local.server.port}")
@@ -58,8 +57,8 @@ class WebfluxOrderApiIT {
     @DisplayName("Erstellt eine Order über die WebFlux-API und liefert eine nicht-leere ID zurück")
     void createOrder_shouldReturnId() {
         given().port(port)
-                .param("email", "test@example.com")
-                .param("total", "19.99")
+                .queryParam("email", "test@example.com")
+                .queryParam("total", "19.99")
                 .when()
                 .post("/orders")
                 .then()

@@ -36,11 +36,6 @@
     </dependency>
     <dependency>
       <groupId>net.rsworld.example.dddonion</groupId>
-      <artifactId>dddonion-outbox-reactive</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>net.rsworld.example.dddonion</groupId>
       <artifactId>dddonion-adapters-webflux</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -59,12 +54,6 @@
       <artifactId>r2dbc-mariadb</artifactId>
       <version>${mariadb-r2dbc.version}</version>
     </dependency>
-    <dependency>
-      <groupId>io.projectreactor.kafka</groupId>
-      <artifactId>reactor-kafka</artifactId>
-      <version>${reactor-kafka.version}</version>
-    </dependency>
-
     <!-- Liquibase + JDBC for migrations -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -104,12 +93,6 @@
       <artifactId>testcontainers-mariadb</artifactId>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>testcontainers-kafka</artifactId>
-      <scope>test</scope>
-    </dependency>
-
     <dependency>
       <groupId>io.projectreactor</groupId>
       <artifactId>reactor-test</artifactId>
