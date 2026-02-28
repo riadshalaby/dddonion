@@ -39,6 +39,12 @@ public class Order {
         version = nextSeq;
     }
 
+    public void pay() {
+        if (status != OrderStatus.PLACED) throw new IllegalStateException("Only placed orders can be paid");
+        status = OrderStatus.PAID;
+        version = version + 1;
+    }
+
     public List<DomainEvent> pullEvents() {
         var copy = List.copyOf(pendingEvents);
         pendingEvents.clear();

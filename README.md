@@ -78,6 +78,9 @@ curl -X POST "http://localhost:8080/orders?email=test@example.com&total=12.34"
 - Das Monitor-Modul loggt Domain Events absichtlich mit Verzoegerung, um Asynchronitaet sichtbar zu machen.
 - Der Bootstrap erstellt die konfigurierte MariaDB-Datenbank (`spring.liquibase.url`) automatisch per `CREATE DATABASE IF NOT EXISTS`, bevor Liquibase ausgeführt wird.
 - Mit Lombok auf JDK 25 kann waehrend der Kompilierung eine `sun.misc.Unsafe`-Warnung erscheinen.
+- Ungültige Eingaben (z.B. ungültige E-Mail-Adresse oder negativer Betrag) werden mit HTTP 400 Bad Request beantwortet.
+- Die DB-Tabelle `orders` enthält die Zeitstempel-Spalten `created_at` und `updated_at`, die über `OrderRow` gelesen werden können.
+- Das Domain-Modell kennt drei Zustände: `NEW` → `PLACED` (via `order.place()`) → `PAID` (via `order.pay()`).
 
 ## License
 This project is licensed under the MIT License. See `LICENSE`.

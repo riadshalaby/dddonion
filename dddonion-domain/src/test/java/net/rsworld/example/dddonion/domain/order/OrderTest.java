@@ -37,4 +37,24 @@ class OrderTest {
         order.place();
         assertThatThrownBy(order::place).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    @DisplayName("Setzt beim Pay-Vorgang Status auf PAID und erhöht die Version")
+    void pay_shouldSetPaidStatusAndBumpVersion() {
+        Order order = new Order("a@b.com", new BigDecimal("10.50"));
+        order.place();
+        long versionAfterPlace = order.version();
+
+        order.pay();
+
+        assertThat(order.status()).isEqualTo(OrderStatus.PAID);
+        assertThat(order.version()).isEqualTo(versionAfterPlace + 1);
+    }
+
+    @Test
+    @DisplayName("Verhindert Pay auf einer Order die noch nicht placed wurde")
+    void pay_onNewOrderShouldFail() {
+        Order order = new Order("a@b.com", new BigDecimal("10.50"));
+        assertThatThrownBy(order::pay).isInstanceOf(IllegalStateException.class);
+    }
 }

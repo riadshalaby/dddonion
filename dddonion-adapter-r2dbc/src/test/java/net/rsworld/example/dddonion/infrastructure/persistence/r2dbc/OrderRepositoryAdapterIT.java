@@ -53,7 +53,9 @@ class OrderRepositoryAdapterIT {
               customer_email VARCHAR(255) NOT NULL,
               total DECIMAL(19,2) NOT NULL,
               status VARCHAR(32) NOT NULL,
-              version BIGINT NOT NULL DEFAULT 0
+              version BIGINT NOT NULL DEFAULT 0,
+              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             );
         """).fetch().rowsUpdated().block();
 
@@ -69,11 +71,10 @@ class OrderRepositoryAdapterIT {
     }
 
     @Test
-    @DisplayName("Speichert eine Order und liest sie anschließend über findById wieder ein")
+    @DisplayName("Speichert eine platzierte Order und liest sie anschließend über findById wieder ein")
     void saveAndFind_optionalNotEmpty() {
         var o = new Order("a@b.com", new BigDecimal("12.34"));
-        Mono.fromCompletionStage(adapter.save(o)).block();
-        o.place(); // sets status/version according to domain logic
+        o.place(); // domain transition first, then persist – mirrors production flow
 
         StepVerifier.create(Mono.fromCompletionStage(adapter.save(o))
                         .then(Mono.fromCompletionStage(adapter.findById(o.id())))
