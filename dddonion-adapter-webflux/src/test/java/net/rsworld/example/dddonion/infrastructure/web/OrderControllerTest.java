@@ -113,6 +113,23 @@ class OrderControllerTest {
     }
 
     @Test
+    @DisplayName("POST /orders returns 400 when domain validation rejects the command (e.g. negative total)")
+    void createReturnsBadRequestOnDomainValidationError() {
+        webTestClient
+                .post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/orders")
+                        .queryParam("email", "test@example.com")
+                        .queryParam("total", "-1.00")
+                        .build())
+                .exchange()
+                .expectStatus()
+                .isBadRequest();
+
+        verifyNoInteractions(placeOrderUseCase);
+    }
+
+    @Test
     @DisplayName("POST /orders propagates errors from use case as 5xx by default")
     void createPropagatesUseCaseError() {
         when(placeOrderUseCase.handle(any())).thenReturn(Mono.error(new IllegalStateException("boom")));
@@ -144,7 +161,7 @@ class OrderControllerTest {
                     .post()
                     .uri(uriBuilder -> uriBuilder
                             .path("/orders")
-                            .queryParam("email", "a@b.c")
+                            .queryParam("email", "a@b.ce")
                             .queryParam("total", "2.50")
                             .build())
                     .accept(MediaType.APPLICATION_JSON)

@@ -30,7 +30,7 @@ class OrderMapperTest {
     @Test
     @DisplayName("Setzt beim Mapping auf Domain die Version auf 0, wenn sie in der Row null ist")
     void toDomain_defaults_null_row_version_to_zero() {
-        OrderRow row = new OrderRow("ord-456", "alice@example.com", new BigDecimal("15.00"), "NEW", null);
+        OrderRow row = new OrderRow("ord-456", "alice@example.com", new BigDecimal("15.00"), "NEW", null, null, null);
 
         Order order = OrderMapper.toDomain(row);
 

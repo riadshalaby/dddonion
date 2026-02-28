@@ -22,11 +22,11 @@ public class DomainEventLoggingListener {
                     event.aggregateId(),
                     event.sequence(),
                     event.occurredAt());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while logging DomainEvent ({})", event, e);
         } catch (Exception e) {
-            log.warn("Failed to log DomainEvent (%s)".formatted(event), e);
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
+            log.warn("Failed to log DomainEvent ({})", event, e);
         }
     }
 }

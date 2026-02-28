@@ -1,6 +1,7 @@
 package net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -28,5 +29,11 @@ public class OrderRow {
     private String status;
 
     @Version
-    private Long version; // Spring Data R2DBC uses this optimistic locking
+    private Long version; // Spring Data R2DBC uses this for optimistic locking
+
+    @Column("created_at")
+    private LocalDateTime createdAt;
+
+    @Column("updated_at")
+    private LocalDateTime updatedAt;
 }

@@ -27,8 +27,8 @@ public class PlaceOrderService implements PlaceOrderUseCase {
         var order = new Order(cmd.customerEmail(), cmd.total());
         order.place();
 
-        return Mono.fromCompletionStage(orders.save(order))
-                .thenMany(Flux.fromIterable(order.pullEvents()))
+        return Mono.fromCompletionStage(() -> orders.save(order))
+                .thenMany(Flux.defer(() -> Flux.fromIterable(order.pullEvents())))
                 .concatMap(events::publish)
                 .then(Mono.just(order.id()))
                 .doOnNext(id -> log.info("DomainEvent with order id ({}) processed: {}", id.value(), cmd));
