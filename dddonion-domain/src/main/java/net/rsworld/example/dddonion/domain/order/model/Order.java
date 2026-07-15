@@ -1,41 +1,37 @@
 package net.rsworld.example.dddonion.domain.order.model;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import net.rsworld.example.dddonion.domain.order.event.OrderPlaced;
 
 public class Order {
     private final OrderId id;
     private OrderStatus status;
-    private final String customerEmail;
-    private final BigDecimal total;
+    private final CustomerEmail customerEmail;
+    private final Money total;
     private long version; // domain version used as event sequence
     private final List<DomainEvent> pendingEvents = new ArrayList<>();
 
-    public Order(String customerEmail, BigDecimal total) {
-        this.id = OrderId.newId();
-        this.customerEmail = customerEmail;
-        this.total = total;
-        this.version = 0L;
-        this.status = OrderStatus.NEW;
+    public Order(CustomerEmail customerEmail, Money total) {
+        this(OrderId.newId(), customerEmail, total, 0L, OrderStatus.NEW);
     }
 
-    public Order(OrderId id, String customerEmail, BigDecimal total, long version, OrderStatus status) {
-        this.id = id;
-        this.customerEmail = customerEmail;
-        this.total = total;
+    public Order(OrderId id, CustomerEmail customerEmail, Money total, long version, OrderStatus status) {
+        this.id = Objects.requireNonNull(id, "id must not be null");
+        this.customerEmail = Objects.requireNonNull(customerEmail, "customerEmail must not be null");
+        this.total = Objects.requireNonNull(total, "total must not be null");
         this.version = version;
-        this.status = status;
+        this.status = Objects.requireNonNull(status, "status must not be null");
     }
 
     public void place() {
         if (status != OrderStatus.NEW) throw new IllegalStateException("Order already progressed");
         status = OrderStatus.PLACED;
         long nextSeq = version + 1;
-        pendingEvents.add(new OrderPlaced(id.value(), nextSeq, Instant.now(), customerEmail, total));
+        pendingEvents.add(new OrderPlaced(id.value(), nextSeq, Instant.now(), customerEmail.value(), total.amount()));
         version = nextSeq;
     }
 
@@ -63,11 +59,11 @@ public class Order {
         return status;
     }
 
-    public String customerEmail() {
+    public CustomerEmail customerEmail() {
         return customerEmail;
     }
 
-    public BigDecimal total() {
+    public Money total() {
         return total;
     }
 }

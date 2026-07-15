@@ -4,6 +4,8 @@ import java.net.URI;
 import net.rsworld.example.dddonion.application.order.usecase.GetOrderUseCase;
 import net.rsworld.example.dddonion.application.order.usecase.PlaceOrderUseCase;
 import net.rsworld.example.dddonion.domain.order.command.PlaceOrderCommand;
+import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
+import net.rsworld.example.dddonion.domain.order.model.Money;
 import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import net.rsworld.example.dddonion.infrastructure.web.api.OrdersApi;
@@ -33,7 +35,7 @@ public class OrderController implements OrdersApi {
     public Mono<ResponseEntity<OrderResponse>> placeOrder(
             Mono<PlaceOrderRequest> placeOrderRequest, ServerWebExchange exchange) {
         return placeOrderRequest
-                .map(req -> new PlaceOrderCommand(req.getCustomerEmail(), req.getTotal()))
+                .map(req -> new PlaceOrderCommand(new CustomerEmail(req.getCustomerEmail()), new Money(req.getTotal())))
                 .flatMap(placeOrder::handle)
                 .map(OrderId::value)
                 .map(id -> ResponseEntity.created(URI.create("/orders/" + id)).body(new OrderResponse(id)));
@@ -50,8 +52,8 @@ public class OrderController implements OrdersApi {
     private static OrderView toView(Order order) {
         return new OrderView(
                 order.id().value(),
-                order.customerEmail(),
-                order.total(),
+                order.customerEmail().value(),
+                order.total().amount(),
                 OrderView.StatusEnum.fromValue(order.status().name()));
     }
 }
