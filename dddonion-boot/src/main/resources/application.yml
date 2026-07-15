@@ -1,4 +1,8 @@
 spring:
+  webflux:
+    problemdetails:
+      enabled: true
+
   r2dbc:
     url: r2dbc:mariadb://localhost:3306/shop
     username: shop
