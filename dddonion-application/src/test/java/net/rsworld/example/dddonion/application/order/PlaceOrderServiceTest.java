@@ -9,6 +9,8 @@ import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.application.order.service.PlaceOrderService;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import net.rsworld.example.dddonion.domain.order.command.PlaceOrderCommand;
+import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
+import net.rsworld.example.dddonion.domain.order.model.Money;
 import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import net.rsworld.example.dddonion.domain.order.repository.OrderRepository;
@@ -33,7 +35,8 @@ class PlaceOrderServiceTest {
 
         PlaceOrderService service = new PlaceOrderService(orders, publisher);
 
-        PlaceOrderCommand cmd = new PlaceOrderCommand("john.doe@example.com", new BigDecimal("42.50"));
+        PlaceOrderCommand cmd =
+                new PlaceOrderCommand(new CustomerEmail("john.doe@example.com"), new Money(new BigDecimal("42.50")));
 
         // act
         Mono<OrderId> result = service.handle(cmd);
@@ -64,7 +67,8 @@ class PlaceOrderServiceTest {
         when(orders.save(any(Order.class))).thenReturn(CompletableFuture.failedFuture(boom));
 
         PlaceOrderService service = new PlaceOrderService(orders, publisher);
-        PlaceOrderCommand cmd = new PlaceOrderCommand("john.doe@example.com", new BigDecimal("42.50"));
+        PlaceOrderCommand cmd =
+                new PlaceOrderCommand(new CustomerEmail("john.doe@example.com"), new Money(new BigDecimal("42.50")));
 
         StepVerifier.create(service.handle(cmd))
                 .expectErrorMatches(err -> err == boom)

@@ -1,23 +1,18 @@
 package net.rsworld.example.dddonion.domain.order.command;
 
-import java.math.BigDecimal;
-import java.util.regex.Pattern;
+import java.util.Objects;
+import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
+import net.rsworld.example.dddonion.domain.order.model.Money;
 
-public record PlaceOrderCommand(String customerEmail, BigDecimal total) {
-
-    // More strict pattern: no leading/trailing dots in local part, no consecutive dots
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(
-            "^[A-Za-z0-9][A-Za-z0-9+._-]*[A-Za-z0-9]@[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*\\.[A-Za-z]{2,}$|^[A-Za-z0-9]@[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*\\.[A-Za-z]{2,}$");
+/**
+ * Command to place an order, composed of already-validated value objects. Because {@link CustomerEmail} and
+ * {@link Money} enforce their own format/range rules, the command only has to assert their presence — the actual
+ * validation is not duplicated here.
+ */
+public record PlaceOrderCommand(CustomerEmail customerEmail, Money total) {
 
     public PlaceOrderCommand {
-        if (customerEmail == null || customerEmail.isBlank()) {
-            throw new IllegalArgumentException("Customer email must not be null or empty");
-        }
-        if (!EMAIL_PATTERN.matcher(customerEmail).matches()) {
-            throw new IllegalArgumentException("Customer email must be a valid email address");
-        }
-        if (total == null || total.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Total must be >= 0");
-        }
+        Objects.requireNonNull(customerEmail, "customerEmail must not be null");
+        Objects.requireNonNull(total, "total must not be null");
     }
 }

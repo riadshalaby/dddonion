@@ -72,6 +72,13 @@
       <scope>test</scope>
     </dependency>
 
+    <!-- Test: parse the OpenAPI contract in the value-based drift test (version managed by Spring Boot) -->
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
 
   <build>

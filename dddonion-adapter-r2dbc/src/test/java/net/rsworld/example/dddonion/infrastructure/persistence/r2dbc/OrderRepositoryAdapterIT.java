@@ -6,6 +6,8 @@ import io.r2dbc.spi.ConnectionFactories;
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import java.math.BigDecimal;
+import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
+import net.rsworld.example.dddonion.domain.order.model.Money;
 import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.adapter.OrderRepositoryAdapter;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.repo.OrderR2dbcRepository;
@@ -73,7 +75,7 @@ class OrderRepositoryAdapterIT {
     @Test
     @DisplayName("Speichert eine platzierte Order und liest sie anschließend über findById wieder ein")
     void saveAndFind_optionalNotEmpty() {
-        var o = new Order("a@b.com", new BigDecimal("12.34"));
+        var o = new Order(new CustomerEmail("a@b.com"), new Money(new BigDecimal("12.34")));
         o.place(); // domain transition first, then persist – mirrors production flow
 
         StepVerifier.create(Mono.fromCompletionStage(adapter.save(o))
