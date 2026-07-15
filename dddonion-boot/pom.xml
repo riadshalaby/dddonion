@@ -49,6 +49,19 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-r2dbc</artifactId>
     </dependency>
+    <!-- Swagger UI static assets, served against the authored /openapi.yaml (design-first; no code scanning) -->
+    <dependency>
+      <groupId>org.webjars</groupId>
+      <artifactId>swagger-ui</artifactId>
+      <version>${swagger-ui.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.webjars</groupId>
+      <artifactId>webjars-locator-lite</artifactId>
+      <version>${webjars-locator-lite.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>org.mariadb</groupId>
       <artifactId>r2dbc-mariadb</artifactId>

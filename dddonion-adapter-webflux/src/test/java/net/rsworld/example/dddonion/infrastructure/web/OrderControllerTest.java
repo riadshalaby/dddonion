@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
+import net.rsworld.example.dddonion.application.order.usecase.GetOrderUseCase;
 import net.rsworld.example.dddonion.application.order.usecase.PlaceOrderUseCase;
 import net.rsworld.example.dddonion.domain.order.command.PlaceOrderCommand;
+import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
+import net.rsworld.example.dddonion.infrastructure.web.dto.PlaceOrderRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.MediaType;
@@ -20,17 +22,21 @@ import reactor.core.publisher.Mono;
 class OrderControllerTest {
 
     private PlaceOrderUseCase placeOrderUseCase;
+    private GetOrderUseCase getOrderUseCase;
     private WebTestClient webTestClient;
 
     @BeforeEach
     void setUp() {
         placeOrderUseCase = mock(PlaceOrderUseCase.class);
-        OrderController controller = new OrderController(placeOrderUseCase);
-        this.webTestClient = WebTestClient.bindToController(controller).build();
+        getOrderUseCase = mock(GetOrderUseCase.class);
+        OrderController controller = new OrderController(placeOrderUseCase, getOrderUseCase);
+        this.webTestClient = WebTestClient.bindToController(controller)
+                .controllerAdvice(new ApiExceptionHandler())
+                .build();
     }
 
     @Test
-    @DisplayName("POST /orders returns created OrderId as plain text when valid params provided")
+    @DisplayName("POST /orders returns 201 with created OrderId as JSON when the body is valid")
     void createReturnsOrderId() {
         // Arrange
         String email = "test@example.com";
@@ -39,24 +45,21 @@ class OrderControllerTest {
         when(placeOrderUseCase.handle(any(PlaceOrderCommand.class))).thenReturn(Mono.just(returnedId));
 
         // Act + Assert
-        String body = webTestClient
+        webTestClient
                 .post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/orders")
-                        .queryParam("email", email)
-                        .queryParam("total", total)
-                        .build())
-                .accept(MediaType.TEXT_PLAIN)
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new PlaceOrderRequest(email, total))
                 .exchange()
                 .expectStatus()
-                .isOk()
+                .isCreated()
                 .expectHeader()
-                .contentTypeCompatibleWith(MediaType.TEXT_PLAIN)
-                .expectBody(String.class)
-                .returnResult()
-                .getResponseBody();
-
-        assertThat(body).isEqualTo("ORD-123");
+                .valueEquals("Location", "/orders/ORD-123")
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .jsonPath("$.orderId")
+                .isEqualTo("ORD-123");
 
         // Verify correct command passed to use case
         ArgumentCaptor<PlaceOrderCommand> cmdCaptor = ArgumentCaptor.forClass(PlaceOrderCommand.class);
@@ -67,27 +70,13 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("POST /orders validates required query params")
-    void createValidatesParams() {
-        // Missing both params
-        webTestClient.post().uri("/orders").exchange().expectStatus().isBadRequest();
-
-        // Present email, missing total
+    @DisplayName("POST /orders returns 400 when the e-mail is missing")
+    void createRejectsMissingEmail() {
         webTestClient
                 .post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/orders")
-                        .queryParam("email", "test@example.com")
-                        .build())
-                .exchange()
-                .expectStatus()
-                .isBadRequest();
-
-        // Present total, missing email
-        webTestClient
-                .post()
-                .uri(uriBuilder ->
-                        uriBuilder.path("/orders").queryParam("total", "10.00").build())
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"total\": 10.00}")
                 .exchange()
                 .expectStatus()
                 .isBadRequest();
@@ -96,15 +85,13 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("POST /orders maps BigDecimal and returns 400 on invalid numeric value")
-    void createRejectsInvalidTotal() {
+    @DisplayName("POST /orders returns 400 on a negative total")
+    void createRejectsNegativeTotal() {
         webTestClient
                 .post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/orders")
-                        .queryParam("email", "test@example.com")
-                        .queryParam("total", "NaN")
-                        .build())
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"customerEmail\": \"test@example.com\", \"total\": -1.00}")
                 .exchange()
                 .expectStatus()
                 .isBadRequest();
@@ -113,34 +100,37 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("POST /orders returns 400 when domain validation rejects the command (e.g. negative total)")
-    void createReturnsBadRequestOnDomainValidationError() {
+    @DisplayName("POST /orders returns 400 problem+json when the domain rejects the e-mail")
+    void createReturnsProblemJsonOnDomainValidationError() {
+        // "a@b" passes lenient @Email bean validation but fails the stricter domain regex,
+        // so the IllegalArgumentException is raised inside the reactive chain and handled by the advice.
         webTestClient
                 .post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/orders")
-                        .queryParam("email", "test@example.com")
-                        .queryParam("total", "-1.00")
-                        .build())
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"customerEmail\": \"a@b\", \"total\": 10.00}")
                 .exchange()
                 .expectStatus()
-                .isBadRequest();
+                .isBadRequest()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .jsonPath("$.status")
+                .isEqualTo(400);
 
         verifyNoInteractions(placeOrderUseCase);
     }
 
     @Test
-    @DisplayName("POST /orders propagates errors from use case as 5xx by default")
+    @DisplayName("POST /orders propagates errors from the use case as 5xx by default")
     void createPropagatesUseCaseError() {
         when(placeOrderUseCase.handle(any())).thenReturn(Mono.error(new IllegalStateException("boom")));
 
         webTestClient
                 .post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/orders")
-                        .queryParam("email", "x@y.ze")
-                        .queryParam("total", "1.00")
-                        .build())
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(new PlaceOrderRequest("x@y.ze", new BigDecimal("1.00")))
                 .exchange()
                 .expectStatus()
                 .is5xxServerError();
@@ -148,48 +138,43 @@ class OrderControllerTest {
         verify(placeOrderUseCase, times(1)).handle(any());
     }
 
-    @Nested
-    @DisplayName("Content negotiation")
-    class ContentNegotiation {
+    @Test
+    @DisplayName("GET /orders/{id} returns 200 with the order view when it exists")
+    void getReturnsOrder() {
+        Order placed = new Order("buyer@example.com", new BigDecimal("42.00"));
+        placed.place(); // NEW -> PLACED
+        when(getOrderUseCase.findById(new OrderId("ORD-7"))).thenReturn(Mono.just(placed));
 
-        @Test
-        @DisplayName("Returns 406 when client only accepts JSON (endpoint produces text/plain)")
-        void returns406WhenJsonRequested() {
-            when(placeOrderUseCase.handle(any())).thenReturn(Mono.just(new OrderId("ORD-42")));
+        webTestClient
+                .get()
+                .uri("/orders/{id}", "ORD-7")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .jsonPath("$.customerEmail")
+                .isEqualTo("buyer@example.com")
+                .jsonPath("$.status")
+                .isEqualTo("PLACED");
+    }
 
-            webTestClient
-                    .post()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/orders")
-                            .queryParam("email", "a@b.ce")
-                            .queryParam("total", "2.50")
-                            .build())
-                    .accept(MediaType.APPLICATION_JSON)
-                    .exchange()
-                    .expectStatus()
-                    .isEqualTo(406);
-        }
+    @Test
+    @DisplayName("GET /orders/{id} returns 404 problem+json when the order is unknown")
+    void getReturnsNotFound() {
+        when(getOrderUseCase.findById(new OrderId("missing"))).thenReturn(Mono.empty());
 
-        @Test
-        @DisplayName("Returns text/plain when client accepts text/plain")
-        void returnsTextPlainWhenAccepted() {
-            when(placeOrderUseCase.handle(any())).thenReturn(Mono.just(new OrderId("ORD-42")));
-
-            webTestClient
-                    .post()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/orders")
-                            .queryParam("email", "a@b.ce")
-                            .queryParam("total", "2.50")
-                            .build())
-                    .accept(MediaType.TEXT_PLAIN)
-                    .exchange()
-                    .expectStatus()
-                    .isOk()
-                    .expectHeader()
-                    .contentTypeCompatibleWith(MediaType.TEXT_PLAIN)
-                    .expectBody(String.class)
-                    .isEqualTo("ORD-42");
-        }
+        webTestClient
+                .get()
+                .uri("/orders/{id}", "missing")
+                .exchange()
+                .expectStatus()
+                .isNotFound()
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .jsonPath("$.status")
+                .isEqualTo(404);
     }
 }
