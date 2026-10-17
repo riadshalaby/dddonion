@@ -22,6 +22,11 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-context</artifactId>
     </dependency>
+    <!-- carries the caller's context (MDC: use case, actor type, correlation id) onto the async listener threads -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>context-propagation</artifactId>
+    </dependency>
 
   </dependencies>
 

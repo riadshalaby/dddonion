@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
+import net.rsworld.example.dddonion.application.context.ActorType;
+import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.application.order.usecase.GetOrderUseCase;
 import net.rsworld.example.dddonion.application.order.usecase.PlaceOrderUseCase;
 import net.rsworld.example.dddonion.domain.order.command.PlaceOrderCommand;
@@ -16,8 +18,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.validation.beanvalidation.MethodValidationInterceptor;
 import reactor.core.publisher.Mono;
 
 /** WebFlux slice test for OrderController. Uses WebTestClient bound to the controller with a mocked UseCase. */
@@ -35,8 +39,11 @@ class OrderControllerTest {
     void setUp() {
         placeOrderUseCase = mock(PlaceOrderUseCase.class);
         getOrderUseCase = mock(GetOrderUseCase.class);
-        OrderController controller = new OrderController(placeOrderUseCase, getOrderUseCase);
-        this.webTestClient = WebTestClient.bindToController(controller)
+        // Mirror the application context: @Validated on the generated interface triggers method validation via a proxy.
+        ProxyFactory proxy = new ProxyFactory(new OrderController(placeOrderUseCase, getOrderUseCase));
+        proxy.setProxyTargetClass(true);
+        proxy.addAdvice(new MethodValidationInterceptor());
+        this.webTestClient = WebTestClient.bindToController(proxy.getProxy())
                 .controllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -48,7 +55,7 @@ class OrderControllerTest {
         String email = "test@example.com";
         BigDecimal total = new BigDecimal("12.34");
         OrderId returnedId = new OrderId(ID);
-        when(placeOrderUseCase.handle(any(PlaceOrderCommand.class))).thenReturn(Mono.just(returnedId));
+        when(placeOrderUseCase.handle(any(PlaceOrderCommand.class), any())).thenReturn(Mono.just(returnedId));
 
         // Act + Assert
         webTestClient
@@ -69,7 +76,7 @@ class OrderControllerTest {
 
         // Verify correct command (built from value objects) passed to the use case
         ArgumentCaptor<PlaceOrderCommand> cmdCaptor = ArgumentCaptor.forClass(PlaceOrderCommand.class);
-        verify(placeOrderUseCase, times(1)).handle(cmdCaptor.capture());
+        verify(placeOrderUseCase, times(1)).handle(cmdCaptor.capture(), any());
         PlaceOrderCommand usedCmd = cmdCaptor.getValue();
         assertThat(usedCmd.customerEmail().value()).isEqualTo(email);
         assertThat(usedCmd.total().amount()).isEqualByComparingTo(total);
@@ -125,7 +132,7 @@ class OrderControllerTest {
     @Test
     @DisplayName("POST /orders propagates errors from the use case as 5xx by default")
     void createPropagatesUseCaseError() {
-        when(placeOrderUseCase.handle(any())).thenReturn(Mono.error(new IllegalStateException("boom")));
+        when(placeOrderUseCase.handle(any(), any())).thenReturn(Mono.error(new IllegalStateException("boom")));
 
         webTestClient
                 .post()
@@ -136,7 +143,7 @@ class OrderControllerTest {
                 .expectStatus()
                 .is5xxServerError();
 
-        verify(placeOrderUseCase, times(1)).handle(any());
+        verify(placeOrderUseCase, times(1)).handle(any(), any());
     }
 
     @Test
@@ -144,7 +151,7 @@ class OrderControllerTest {
     void getReturnsOrder() {
         Order placed = new Order(new CustomerEmail("buyer@example.com"), new Money(new BigDecimal("42.00")));
         placed.place(); // NEW -> PLACED
-        when(getOrderUseCase.findById(new OrderId(ID))).thenReturn(Mono.just(placed));
+        when(getOrderUseCase.findById(eq(new OrderId(ID)), any())).thenReturn(Mono.just(placed));
 
         webTestClient
                 .get()
@@ -164,7 +171,7 @@ class OrderControllerTest {
     @Test
     @DisplayName("GET /orders/{id} returns 404 problem+json when the order is unknown")
     void getReturnsNotFound() {
-        when(getOrderUseCase.findById(new OrderId(ID_2))).thenReturn(Mono.empty());
+        when(getOrderUseCase.findById(eq(new OrderId(ID_2)), any())).thenReturn(Mono.empty());
 
         webTestClient
                 .get()
@@ -193,6 +200,78 @@ class OrderControllerTest {
                 .expectBody()
                 .jsonPath("$.status")
                 .isEqualTo(400);
+
+        verifyNoInteractions(getOrderUseCase);
+    }
+
+    @Test
+    @DisplayName("POST /orders passes actor type and correlation id from the headers to the use case and echoes the id")
+    void createPassesUseCaseMetadataFromHeaders() {
+        when(placeOrderUseCase.handle(any(), any())).thenReturn(Mono.just(new OrderId(ID)));
+
+        webTestClient
+                .post()
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Actor-Type", "BUSINESS_CUSTOMER")
+                .header("X-Correlation-Id", "corr-42")
+                .bodyValue(new PlaceOrderRequest("test@example.com", new BigDecimal("1.00")))
+                .exchange()
+                .expectStatus()
+                .isCreated()
+                .expectHeader()
+                .valueEquals("X-Correlation-Id", "corr-42");
+
+        ArgumentCaptor<UseCaseMetadata> metaCaptor = ArgumentCaptor.forClass(UseCaseMetadata.class);
+        verify(placeOrderUseCase).handle(any(), metaCaptor.capture());
+        assertThat(metaCaptor.getValue()).isEqualTo(new UseCaseMetadata(ActorType.BUSINESS_CUSTOMER, "rest", "corr-42"));
+    }
+
+    @Test
+    @DisplayName("Without headers the caller is classified UNKNOWN and a correlation id is generated")
+    void missingHeadersFallBackToUnknownAndGeneratedCorrelationId() {
+        Order placed = new Order(new CustomerEmail("buyer@example.com"), new Money(new BigDecimal("42.00")));
+        when(getOrderUseCase.findById(eq(new OrderId(ID)), any())).thenReturn(Mono.just(placed));
+
+        webTestClient
+                .get()
+                .uri("/orders/{id}", ID)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectHeader()
+                .exists("X-Correlation-Id");
+
+        ArgumentCaptor<UseCaseMetadata> metaCaptor = ArgumentCaptor.forClass(UseCaseMetadata.class);
+        verify(getOrderUseCase).findById(any(), metaCaptor.capture());
+        assertThat(metaCaptor.getValue().actorType()).isEqualTo(ActorType.UNKNOWN);
+        assertThat(metaCaptor.getValue().correlationId()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("An actor type outside the contract enum is rejected with 400 before any use case runs")
+    void unknownActorTypeValueIsRejected() {
+        webTestClient
+                .get()
+                .uri("/orders/{id}", ID)
+                .header("X-Actor-Type", "HACKER")
+                .exchange()
+                .expectStatus()
+                .isBadRequest();
+
+        verifyNoInteractions(getOrderUseCase);
+    }
+
+    @Test
+    @DisplayName("A correlation id with characters unsafe for logs is rejected with 400")
+    void unsafeCorrelationIdIsRejected() {
+        webTestClient
+                .get()
+                .uri("/orders/{id}", ID)
+                .header("X-Correlation-Id", "bad id;INJECTED")
+                .exchange()
+                .expectStatus()
+                .isBadRequest();
 
         verifyNoInteractions(getOrderUseCase);
     }

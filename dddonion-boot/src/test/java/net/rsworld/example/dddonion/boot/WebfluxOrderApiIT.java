@@ -110,12 +110,38 @@ class WebfluxOrderApiIT {
     @DisplayName("Liefert 404 problem+json für eine unbekannte Order")
     void getOrder_shouldReturn404ForUnknownId() {
         client.get()
-                .uri("/orders/does-not-exist")
+                .uri("/orders/7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d")
                 .exchange()
                 .expectStatus()
                 .isNotFound()
                 .expectHeader()
                 .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
+    @DisplayName("Misst jede Use-Case-Ausführung mit Use Case und Actor-Typ als Prometheus-Labels")
+    void exposesUseCaseMetricsPerActorType() {
+        client.post()
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Actor-Type", "BUSINESS_CUSTOMER")
+                .bodyValue("{\"customerEmail\": \"test@example.com\", \"total\": 5.00}")
+                .exchange()
+                .expectStatus()
+                .isCreated()
+                .expectHeader()
+                .exists("X-Correlation-Id");
+
+        client.get()
+                .uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body)
+                        .containsPattern("usecase_execution_seconds_count\\{[^}]*actor_type=\"BUSINESS_CUSTOMER\""
+                                + "[^}]*usecase=\"place-order\"[^}]*}")
+                        .doesNotContain("correlation_id"));
     }
 
     @Test

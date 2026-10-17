@@ -1,6 +1,7 @@
 package net.rsworld.example.dddonion.application.order.service;
 
 import lombok.extern.slf4j.Slf4j;
+import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.application.order.usecase.PlaceOrderUseCase;
 import net.rsworld.example.dddonion.domain.order.command.PlaceOrderCommand;
@@ -23,7 +24,7 @@ public class PlaceOrderService implements PlaceOrderUseCase {
     }
 
     @Override
-    public Mono<OrderId> handle(PlaceOrderCommand cmd) {
+    public Mono<OrderId> handle(PlaceOrderCommand cmd, UseCaseMetadata metadata) {
         var order = new Order(cmd.customerEmail(), cmd.total());
         order.place();
 
@@ -31,6 +32,7 @@ public class PlaceOrderService implements PlaceOrderUseCase {
                 .thenMany(Flux.defer(() -> Flux.fromIterable(order.pullEvents())))
                 .concatMap(events::publish)
                 .then(Mono.just(order.id()))
-                .doOnNext(id -> log.info("DomainEvent with order id ({}) processed: {}", id.value(), cmd));
+                // log only the id: the command carries the customer e-mail (PII)
+                .doOnNext(id -> log.info("Order {} placed", id.value()));
     }
 }

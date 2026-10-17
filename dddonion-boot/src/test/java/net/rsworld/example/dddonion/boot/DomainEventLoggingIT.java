@@ -85,7 +85,7 @@ class DomainEventLoggingIT {
 
         PatternLayoutEncoder encoder = new PatternLayoutEncoder();
         encoder.setContext(ctx);
-        encoder.setPattern("%msg%n");
+        encoder.setPattern("%msg correlationId=%X{correlationId}%n");
         encoder.start();
 
         appender = new OutputStreamAppender<>();
@@ -99,12 +99,14 @@ class DomainEventLoggingIT {
         // Call HTTP endpoint to place an order
         given().baseUri("http://localhost")
                 .port(port)
-                .queryParam("email", "john.doe@example.com")
-                .queryParam("total", "42.50")
+                .contentType("application/json")
+                .header("X-Actor-Type", "PRIVATE_CUSTOMER")
+                .header("X-Correlation-Id", "it-corr-1")
+                .body("{\"customerEmail\": \"john.doe@example.com\", \"total\": 42.50}")
                 .when()
                 .post("/orders")
                 .then()
-                .statusCode(200);
+                .statusCode(201);
 
         await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() -> {
             String logged = out.toString();
@@ -113,6 +115,8 @@ class DomainEventLoggingIT {
             assertThat(logged).contains("aggregateId=");
             assertThat(logged).contains("sequence=1");
             assertThat(logged).contains("occurredAt=");
+            // the async listener runs in the context of the use case that published the event
+            assertThat(logged).contains("correlationId=it-corr-1");
         });
     }
 }
