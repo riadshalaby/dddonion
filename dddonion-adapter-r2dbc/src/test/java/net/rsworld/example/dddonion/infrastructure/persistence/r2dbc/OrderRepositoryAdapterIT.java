@@ -78,8 +78,10 @@ class OrderRepositoryAdapterIT {
         var o = new Order(new CustomerEmail("a@b.com"), new Money(new BigDecimal("12.34")));
         o.place(); // domain transition first, then persist – mirrors production flow
 
-        StepVerifier.create(Mono.fromCompletionStage(adapter.save(o))
-                        .then(Mono.fromCompletionStage(adapter.findById(o.id())))
+        // Supplier form: CompletionStage-returning ports start work when called, so calling them while assembling
+        // the chain would run save and findById concurrently (findById racing the INSERT).
+        StepVerifier.create(Mono.fromCompletionStage(() -> adapter.save(o))
+                        .then(Mono.fromCompletionStage(() -> adapter.findById(o.id())))
                         .map(opt -> opt.orElseThrow(() -> new AssertionError("Order not found via adapter.findById"))))
                 .expectNextMatches(found -> found.id().value().equals(o.id().value()))
                 .verifyComplete();
