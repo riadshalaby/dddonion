@@ -7,9 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Writes exactly one line per use-case execution to the {@value #LOGGER_NAME} logger. It is fed by the same
- * observation as the timer metric, so audit logs and metrics cannot disagree. Values are attached as SLF4J key-value
- * pairs, which structured (JSON) logging emits as separate fields for Loki/Grafana.
+ * Writes exactly one line per use-case execution to the {@value #LOGGER_NAME} logger. It is fed by the same observation
+ * as the timer metric, so audit logs and metrics cannot disagree. Values are attached as SLF4J key-value pairs, which
+ * structured (JSON) logging emits as separate fields for Loki/Grafana.
  */
 public class AuditLogObservationHandler implements ObservationHandler<Observation.Context> {
 
@@ -36,7 +36,9 @@ public class AuditLogObservationHandler implements ObservationHandler<Observatio
         String channel = value(context, UseCaseObservability.KEY_CHANNEL);
         String outcome = value(context, UseCaseObservability.KEY_OUTCOME);
         String correlationId = value(context, UseCaseObservability.KEY_CORRELATION_ID);
-        String error = context.getError() == null ? "none" : context.getError().getClass().getSimpleName();
+        String error = context.getError() == null
+                ? "none"
+                : context.getError().getClass().getSimpleName();
 
         AUDIT.atInfo()
                 .setMessage("usecase={} actorType={} channel={} outcome={} error={} durationMs={} correlationId={}")

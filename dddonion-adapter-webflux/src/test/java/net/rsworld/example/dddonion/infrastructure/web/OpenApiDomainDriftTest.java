@@ -67,7 +67,8 @@ class OpenApiDomainDriftTest {
                 .toList();
 
         assertThat(((Map<?, ?>) SCHEMAS.get("ActorType")).get("enum"))
-                .as("OpenAPI ActorType enum must list every classifiable application ActorType (UNKNOWN is server-side only)")
+                .as(
+                        "OpenAPI ActorType enum must list every classifiable application ActorType (UNKNOWN is server-side only)")
                 .isEqualTo(application);
     }
 

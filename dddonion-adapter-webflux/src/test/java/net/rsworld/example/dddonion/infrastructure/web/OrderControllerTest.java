@@ -224,7 +224,8 @@ class OrderControllerTest {
 
         ArgumentCaptor<UseCaseMetadata> metaCaptor = ArgumentCaptor.forClass(UseCaseMetadata.class);
         verify(placeOrderUseCase).handle(any(), metaCaptor.capture());
-        assertThat(metaCaptor.getValue()).isEqualTo(new UseCaseMetadata(ActorType.BUSINESS_CUSTOMER, "rest", "corr-42"));
+        assertThat(metaCaptor.getValue())
+                .isEqualTo(new UseCaseMetadata(ActorType.BUSINESS_CUSTOMER, "rest", "corr-42"));
     }
 
     @Test

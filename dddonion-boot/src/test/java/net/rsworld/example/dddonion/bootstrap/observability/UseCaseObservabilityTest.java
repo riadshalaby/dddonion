@@ -27,8 +27,7 @@ import reactor.test.StepVerifier;
 
 class UseCaseObservabilityTest {
 
-    private static final UseCaseMetadata META =
-            new UseCaseMetadata(ActorType.BUSINESS_CUSTOMER, "rest", "corr-42");
+    private static final UseCaseMetadata META = new UseCaseMetadata(ActorType.BUSINESS_CUSTOMER, "rest", "corr-42");
 
     /** Sample use case shaped like the real ones. */
     interface PlaceThingUseCase {

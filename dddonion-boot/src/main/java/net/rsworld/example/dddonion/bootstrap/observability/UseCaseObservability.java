@@ -16,8 +16,8 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 
 /**
- * Decorates a use case so that every invocation becomes one {@link Observation} named {@value #OBSERVATION_NAME}
- * (→ timer metric + audit log line) and carries its {@link UseCaseMetadata} into the Reactor context (→ MDC).
+ * Decorates a use case so that every invocation becomes one {@link Observation} named {@value #OBSERVATION_NAME} (→
+ * timer metric + audit log line) and carries its {@link UseCaseMetadata} into the Reactor context (→ MDC).
  *
  * <p>The use case name is derived from the interface ({@code PlaceOrderUseCase} → {@code place-order}), so it cannot
  * drift from the code. Low-cardinality values become metric tags; the correlation id is high-cardinality and therefore
@@ -93,7 +93,8 @@ public final class UseCaseObservability {
                             .parentObservation(reactorContext.getOrDefault(ObservationThreadLocalAccessor.KEY, null))
                             .contextualName(name)
                             .lowCardinalityKeyValue(KEY_USECASE, name)
-                            .lowCardinalityKeyValue(KEY_ACTOR_TYPE, metadata.actorType().name())
+                            .lowCardinalityKeyValue(
+                                    KEY_ACTOR_TYPE, metadata.actorType().name())
                             .lowCardinalityKeyValue(KEY_CHANNEL, metadata.channel())
                             .highCardinalityKeyValue(KEY_CORRELATION_ID, metadata.correlationId())
                             .start();
@@ -103,7 +104,8 @@ public final class UseCaseObservability {
                             .doOnError(observation::error)
                             .doFinally(signal -> {
                                 observation.lowCardinalityKeyValue(
-                                        KEY_OUTCOME, outcome(signal, emitted.get()).name());
+                                        KEY_OUTCOME,
+                                        outcome(signal, emitted.get()).name());
                                 observation.stop();
                             })
                             .contextWrite(ctx -> ctx.put(ObservationThreadLocalAccessor.KEY, observation));

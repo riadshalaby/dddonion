@@ -14,10 +14,12 @@ public final class UseCaseMdc {
 
     public static void register(ContextRegistry registry) {
         for (String key : new String[] {
-            UseCaseObservability.MDC_USECASE, UseCaseObservability.MDC_ACTOR_TYPE, UseCaseObservability.MDC_CORRELATION_ID
+            UseCaseObservability.MDC_USECASE,
+            UseCaseObservability.MDC_ACTOR_TYPE,
+            UseCaseObservability.MDC_CORRELATION_ID
         }) {
-            registry.registerThreadLocalAccessor(key, () -> MDC.get(key), value -> MDC.put(key, value), () -> MDC.remove(
-                    key));
+            registry.registerThreadLocalAccessor(
+                    key, () -> MDC.get(key), value -> MDC.put(key, value), () -> MDC.remove(key));
         }
     }
 }

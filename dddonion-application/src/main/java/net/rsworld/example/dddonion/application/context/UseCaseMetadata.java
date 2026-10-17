@@ -3,8 +3,8 @@ package net.rsworld.example.dddonion.application.context;
 import java.util.Objects;
 
 /**
- * Who invoked a use case and through which channel, passed explicitly alongside the command/query. Built by the
- * inbound adapter; the use case name itself is not part of it because it follows from the invoked use case.
+ * Who invoked a use case and through which channel, passed explicitly alongside the command/query. Built by the inbound
+ * adapter; the use case name itself is not part of it because it follows from the invoked use case.
  *
  * @param actorType business classification of the caller
  * @param channel inbound channel, e.g. {@code rest}
