@@ -1,5 +1,6 @@
 package net.rsworld.example.dddonion.application.order.service;
 
+import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.application.order.usecase.GetOrderUseCase;
 import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
@@ -16,7 +17,7 @@ public class GetOrderService implements GetOrderUseCase {
     }
 
     @Override
-    public Mono<Order> findById(OrderId id) {
+    public Mono<Order> findById(OrderId id, UseCaseMetadata metadata) {
         return Mono.fromCompletionStage(() -> orders.findById(id))
                 .flatMap(found -> found.map(Mono::just).orElseGet(Mono::empty));
     }

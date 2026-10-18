@@ -61,11 +61,27 @@ dddonion/
 
 ## Datenfluss: Order anlegen
 1. HTTP `POST /orders` mit JSON-Body `{ "customerEmail": ..., "total": ... }` trifft auf `OrderController`.
-2. Controller ruft `PlaceOrderUseCase`.
+2. Controller baut aus den Headern `UseCaseMetadata` und ruft `PlaceOrderUseCase` (in `boot` mit `UseCaseObservability` dekoriert).
 3. `PlaceOrderService` erstellt ein `Order`-Aggregate und fuehrt `order.place()` aus.
 4. Repository-Port `OrderRepository` persistiert das Aggregate via R2DBC-Adapter.
 5. Entstandene Domain Events werden nach erfolgreichem Persistieren ueber den Application-Port `DomainEventPublisherPort` publiziert.
 6. `DomainEventLoggingListener` verarbeitet diese Events asynchron.
+
+## Use-Case-Audit (Logs & Metriken)
+Jeder Use Case erhält explizit `UseCaseMetadata` (`actorType`, `channel`, `correlationId`) aus dem Application-Layer; der Domain-Command bleibt frei davon.
+- **Wer**: Header `X-Actor-Type` (`PRIVATE_CUSTOMER`, `BUSINESS_CUSTOMER`, `EXTERNAL_ERP`); fehlt er, wird `UNKNOWN` erfasst. Selbstdeklariert, also nur für Auswertungen, nicht für Autorisierung.
+- **Korrelation**: Header `X-Correlation-Id` (optional, sonst generiert, wird in der Antwort zurückgegeben).
+- **Metrik**: Timer `usecase.execution` (Prometheus `usecase_execution_seconds_*`) mit Labels `usecase`, `actor_type`, `channel`, `outcome` (`SUCCESS`/`EMPTY`/`ERROR`/`CANCELLED`), `error`; unter `/actuator/prometheus`. Die Correlation-ID ist bewusst kein Label (Kardinalität).
+- **Audit-Log**: genau eine Zeile pro Ausführung auf Logger `audit`, inkl. Dauer; mit Profil `json-logs` als ECS-JSON mit eigenen Feldern (für Loki).
+- **MDC**: `usecase`, `actorType`, `correlationId` stehen in jeder Logzeile innerhalb des Use Cases, auch im asynchronen `DomainEventLoggingListener`.
+- Neue Use Cases: Methode muss `Mono` liefern und `UseCaseMetadata` nehmen, Bean in `BeansConfig` mit `UseCaseObservability.wrap(...)` registrieren – beides wird beim Start bzw. per Test erzwungen.
+
+```bash
+curl -i -X POST http://localhost:8080/orders \
+  -H 'Content-Type: application/json' -H 'X-Actor-Type: BUSINESS_CUSTOMER' \
+  -d '{"customerEmail": "test@example.com", "total": 12.34}'
+curl -s http://localhost:8080/actuator/prometheus | grep usecase_execution
+```
 
 ## Technischer Stand
 - Spring Boot: `4.0.1`

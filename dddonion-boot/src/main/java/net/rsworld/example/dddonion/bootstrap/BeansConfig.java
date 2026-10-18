@@ -1,10 +1,12 @@
 package net.rsworld.example.dddonion.bootstrap;
 
+import io.micrometer.observation.ObservationRegistry;
 import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.application.order.service.GetOrderService;
 import net.rsworld.example.dddonion.application.order.service.PlaceOrderService;
 import net.rsworld.example.dddonion.application.order.usecase.GetOrderUseCase;
 import net.rsworld.example.dddonion.application.order.usecase.PlaceOrderUseCase;
+import net.rsworld.example.dddonion.bootstrap.observability.UseCaseObservability;
 import net.rsworld.example.dddonion.domain.order.repository.OrderRepository;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.adapter.OrderRepositoryAdapter;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.repo.OrderR2dbcRepository;
@@ -29,12 +31,14 @@ public class BeansConfig {
     }
 
     @Bean
-    public PlaceOrderUseCase placeOrderUseCase(OrderRepository orders, DomainEventPublisherPort eventPublisher) {
-        return new PlaceOrderService(orders, eventPublisher);
+    public PlaceOrderUseCase placeOrderUseCase(
+            OrderRepository orders, DomainEventPublisherPort eventPublisher, ObservationRegistry observations) {
+        return UseCaseObservability.wrap(
+                PlaceOrderUseCase.class, new PlaceOrderService(orders, eventPublisher), observations);
     }
 
     @Bean
-    public GetOrderUseCase getOrderUseCase(OrderRepository orders) {
-        return new GetOrderService(orders);
+    public GetOrderUseCase getOrderUseCase(OrderRepository orders, ObservationRegistry observations) {
+        return UseCaseObservability.wrap(GetOrderUseCase.class, new GetOrderService(orders), observations);
     }
 }

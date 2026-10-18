@@ -4,16 +4,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import net.rsworld.example.dddonion.application.context.ActorType;
 import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
 import net.rsworld.example.dddonion.domain.order.model.Money;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.yaml.snakeyaml.Yaml;
 
@@ -54,6 +57,19 @@ class OpenApiDomainDriftTest {
                                     type.schemaName(), verb(sample), sample.value())
                             .isEqualTo(sample.valid());
                 })));
+    }
+
+    @Test
+    void actorTypeEnumMatchesApplicationActorTypeWithoutUnknown() {
+        List<String> application = Arrays.stream(ActorType.values())
+                .filter(t -> t != ActorType.UNKNOWN)
+                .map(Enum::name)
+                .toList();
+
+        assertThat(((Map<?, ?>) SCHEMAS.get("ActorType")).get("enum"))
+                .as(
+                        "OpenAPI ActorType enum must list every classifiable application ActorType (UNKNOWN is server-side only)")
+                .isEqualTo(application);
     }
 
     private static List<SharedType> sharedTypes() {

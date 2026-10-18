@@ -5,6 +5,8 @@ import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
+import net.rsworld.example.dddonion.application.context.ActorType;
+import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.application.order.service.PlaceOrderService;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
@@ -21,6 +23,8 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 class PlaceOrderServiceTest {
+
+    private static final UseCaseMetadata META = new UseCaseMetadata(ActorType.PRIVATE_CUSTOMER, "test", "corr-1");
 
     @Test
     @DisplayName("Publiziert Domain-Events über den Publisher-Port nach erfolgreichem Persistieren")
@@ -39,7 +43,7 @@ class PlaceOrderServiceTest {
                 new PlaceOrderCommand(new CustomerEmail("john.doe@example.com"), new Money(new BigDecimal("42.50")));
 
         // act
-        Mono<OrderId> result = service.handle(cmd);
+        Mono<OrderId> result = service.handle(cmd, META);
 
         // assert
         StepVerifier.create(result)
@@ -70,7 +74,7 @@ class PlaceOrderServiceTest {
         PlaceOrderCommand cmd =
                 new PlaceOrderCommand(new CustomerEmail("john.doe@example.com"), new Money(new BigDecimal("42.50")));
 
-        StepVerifier.create(service.handle(cmd))
+        StepVerifier.create(service.handle(cmd, META))
                 .expectErrorMatches(err -> err == boom)
                 .verify();
 
