@@ -1,7 +1,7 @@
 package net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.mapper;
 
-import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
-import net.rsworld.example.dddonion.domain.order.model.Money;
+import net.rsworld.example.dddonion.domain.common.Money;
+import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
 import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import net.rsworld.example.dddonion.domain.order.model.OrderStatus;
@@ -14,10 +14,10 @@ public final class OrderMapper {
     public static OrderRow toRow(Order o) {
         OrderRow r = new OrderRow();
         r.setId(o.id().value());
-        r.setCustomerEmail(o.customerEmail().value());
+        r.setCustomerId(o.customerId().value());
         r.setTotal(o.total().amount());
         r.setStatus(o.status().name());
-        r.setVersion(o.version()); // will be set to null in the adapter if necessary (INSERT)
+        r.setVersion(o.version());
         return r;
     }
 
@@ -25,7 +25,7 @@ public final class OrderMapper {
         long version = r.getVersion() == null ? 0L : r.getVersion();
         return new Order(
                 new OrderId(r.getId()),
-                new CustomerEmail(r.getCustomerEmail()),
+                new CustomerId(r.getCustomerId()),
                 new Money(r.getTotal()),
                 version,
                 OrderStatus.valueOf(r.getStatus()));

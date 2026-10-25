@@ -7,13 +7,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Serves the authored OpenAPI contract at runtime so tooling (and Swagger UI) can load it. The same
- * {@code openapi/orders.yaml} that drives code generation is exposed verbatim, keeping a single source of truth.
+ * {@code openapi/api.yaml} that drives code generation is exposed verbatim, keeping a single source of truth.
  */
 @RestController
 public class OpenApiSpecController {
 
     @GetMapping(value = "/openapi.yaml", produces = "application/yaml")
     public Resource spec() {
-        return new ClassPathResource("openapi/orders.yaml");
+        return new ClassPathResource("openapi/api.yaml");
     }
 }
