@@ -1,4 +1,4 @@
-package net.rsworld.example.dddonion.domain.order.model;
+package net.rsworld.example.dddonion.domain.customer.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

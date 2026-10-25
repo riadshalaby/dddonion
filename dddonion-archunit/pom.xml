@@ -19,6 +19,12 @@
     </dependency>
     <dependency>
       <groupId>net.rsworld.example.dddonion</groupId>
+      <artifactId>dddonion-architecture</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.rsworld.example.dddonion</groupId>
       <artifactId>dddonion-application</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
@@ -32,6 +38,12 @@
     <dependency>
       <groupId>net.rsworld.example.dddonion</groupId>
       <artifactId>dddonion-adapters-webflux</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.rsworld.example.dddonion</groupId>
+      <artifactId>dddonion-adapters-events</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>

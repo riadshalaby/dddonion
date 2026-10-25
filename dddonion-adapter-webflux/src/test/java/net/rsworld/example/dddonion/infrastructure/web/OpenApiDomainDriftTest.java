@@ -4,16 +4,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
-import net.rsworld.example.dddonion.domain.order.model.Money;
+import net.rsworld.example.dddonion.application.context.ActorType;
+import net.rsworld.example.dddonion.domain.common.Money;
+import net.rsworld.example.dddonion.domain.customer.model.CustomerEmail;
+import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 import org.yaml.snakeyaml.Yaml;
 
@@ -26,7 +30,7 @@ import org.yaml.snakeyaml.Yaml;
  * <ul>
  *   <li><b>domain side</b> — the real value-object constructor (accepts, or throws {@link IllegalArgumentException});
  *   <li><b>wire side</b> — the constraints ({@code pattern} / {@code minLength} / {@code maxLength} / {@code minimum})
- *       parsed from {@code openapi/orders.yaml}.
+ *       parsed from {@code openapi/api.yaml}.
  * </ul>
  *
  * If either side is changed without the other, some sample value is classified differently and this test fails. Adding
@@ -56,6 +60,19 @@ class OpenApiDomainDriftTest {
                 })));
     }
 
+    @Test
+    void actorTypeEnumMatchesApplicationActorTypeWithoutUnknown() {
+        List<String> application = Arrays.stream(ActorType.values())
+                .filter(t -> t != ActorType.UNKNOWN)
+                .map(Enum::name)
+                .toList();
+
+        assertThat(((Map<?, ?>) SCHEMAS.get("ActorType")).get("enum"))
+                .as(
+                        "OpenAPI ActorType enum must list every classifiable application ActorType (UNKNOWN is server-side only)")
+                .isEqualTo(application);
+    }
+
     private static List<SharedType> sharedTypes() {
         return List.of(
                 new SharedType(
@@ -66,6 +83,17 @@ class OpenApiDomainDriftTest {
                                 valid("3F6A9C1E-4B2D-4F0A-9C7E-8A1B2C3D4E5F"), // upper-case hex
                                 invalid(""),
                                 invalid("ORD-123"),
+                                invalid("3f6a9c1e4b2d4f0a9c7e8a1b2c3d4e5f"), // 32 chars, no dashes
+                                invalid("3f6a9c1e-4b2d-4f0a-9c7e-8a1b2c3d4e5"), // 35 chars
+                                invalid("z3f6a9c1-4b2d-4f0a-9c7e-8a1b2c3d4e5f"))), // non-hex character
+                new SharedType(
+                        "CustomerId",
+                        v -> new CustomerId((String) v),
+                        List.of(
+                                valid(UUID.randomUUID().toString()),
+                                valid("3F6A9C1E-4B2D-4F0A-9C7E-8A1B2C3D4E5F"), // upper-case hex
+                                invalid(""),
+                                invalid("CUS-123"),
                                 invalid("3f6a9c1e4b2d4f0a9c7e8a1b2c3d4e5f"), // 32 chars, no dashes
                                 invalid("3f6a9c1e-4b2d-4f0a-9c7e-8a1b2c3d4e5"), // 35 chars
                                 invalid("z3f6a9c1-4b2d-4f0a-9c7e-8a1b2c3d4e5f"))), // non-hex character
@@ -110,10 +138,9 @@ class OpenApiDomainDriftTest {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> loadSchemas() {
-        try (InputStream in =
-                OpenApiDomainDriftTest.class.getClassLoader().getResourceAsStream("openapi/orders.yaml")) {
+        try (InputStream in = OpenApiDomainDriftTest.class.getClassLoader().getResourceAsStream("openapi/api.yaml")) {
             if (in == null) {
-                throw new IllegalStateException("openapi/orders.yaml not found on the test classpath");
+                throw new IllegalStateException("openapi/api.yaml not found on the test classpath");
             }
             Map<String, Object> root = new Yaml().load(in);
             Map<String, Object> components = (Map<String, Object>) root.get("components");

@@ -1,4 +1,4 @@
-package net.rsworld.example.dddonion.domain.order.model;
+package net.rsworld.example.dddonion.domain.customer.model;
 
 import java.util.regex.Pattern;
 

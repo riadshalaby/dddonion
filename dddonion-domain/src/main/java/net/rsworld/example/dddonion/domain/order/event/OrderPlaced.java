@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
 
-public record OrderPlaced(String orderId, long sequence, Instant occurredAt, String customerEmail, BigDecimal total)
+public record OrderPlaced(String orderId, long sequence, Instant occurredAt, String customerId, BigDecimal total)
         implements DomainEvent {
     @Override
     public String aggregateId() {

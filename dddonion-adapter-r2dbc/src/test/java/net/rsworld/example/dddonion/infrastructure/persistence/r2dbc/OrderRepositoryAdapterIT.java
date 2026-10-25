@@ -1,14 +1,20 @@
 package net.rsworld.example.dddonion.infrastructure.persistence.r2dbc;
 
 import static io.r2dbc.spi.ConnectionFactoryOptions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.r2dbc.spi.ConnectionFactories;
 import io.r2dbc.spi.ConnectionFactory;
 import io.r2dbc.spi.ConnectionFactoryOptions;
 import java.math.BigDecimal;
-import net.rsworld.example.dddonion.domain.order.model.CustomerEmail;
-import net.rsworld.example.dddonion.domain.order.model.Money;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import net.rsworld.example.dddonion.domain.common.ConcurrentAggregateUpdateException;
+import net.rsworld.example.dddonion.domain.common.Money;
+import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
 import net.rsworld.example.dddonion.domain.order.model.Order;
+import net.rsworld.example.dddonion.domain.order.model.OrderId;
+import net.rsworld.example.dddonion.domain.order.model.OrderStatus;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.adapter.OrderRepositoryAdapter;
 import net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.repo.OrderR2dbcRepository;
 import org.junit.jupiter.api.AfterAll;
@@ -52,7 +58,7 @@ class OrderRepositoryAdapterIT {
         db.sql("""
             CREATE TABLE IF NOT EXISTS orders (
               id VARCHAR(64) PRIMARY KEY,
-              customer_email VARCHAR(255) NOT NULL,
+              customer_id VARCHAR(36) NOT NULL,
               total DECIMAL(19,2) NOT NULL,
               status VARCHAR(32) NOT NULL,
               version BIGINT NOT NULL DEFAULT 0,
@@ -64,7 +70,7 @@ class OrderRepositoryAdapterIT {
         var template = new R2dbcEntityTemplate(cf);
         var factory = new org.springframework.data.r2dbc.repository.support.R2dbcRepositoryFactory(template);
         OrderR2dbcRepository repo = factory.getRepository(OrderR2dbcRepository.class);
-        adapter = new OrderRepositoryAdapter(repo);
+        adapter = new OrderRepositoryAdapter(repo, template);
     }
 
     @AfterAll
@@ -75,13 +81,90 @@ class OrderRepositoryAdapterIT {
     @Test
     @DisplayName("Speichert eine platzierte Order und liest sie anschließend über findById wieder ein")
     void saveAndFind_optionalNotEmpty() {
-        var o = new Order(new CustomerEmail("a@b.com"), new Money(new BigDecimal("12.34")));
+        var o = new Order(CustomerId.newId(), new Money(new BigDecimal("12.34")));
         o.place(); // domain transition first, then persist – mirrors production flow
 
-        StepVerifier.create(Mono.fromCompletionStage(adapter.save(o))
-                        .then(Mono.fromCompletionStage(adapter.findById(o.id())))
+        // Supplier form: CompletionStage-returning ports start work when called, so calling them while assembling
+        // the chain would run save and findById concurrently (findById racing the INSERT).
+        StepVerifier.create(Mono.fromCompletionStage(() -> adapter.save(o))
+                        .then(Mono.fromCompletionStage(() -> adapter.findById(o.id())))
                         .map(opt -> opt.orElseThrow(() -> new AssertionError("Order not found via adapter.findById"))))
                 .expectNextMatches(found -> found.id().value().equals(o.id().value()))
                 .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Speichert die Domain-Version: eine platzierte Order hat Version 1, nach pay() Version 2")
+    void persistsDomainVersion() {
+        var o = placedOrder();
+
+        Mono<Order> flow = Mono.fromCompletionStage(() -> adapter.save(o))
+                .then(load(o.id()))
+                .doOnNext(loaded -> assertEquals(1L, loaded.version()))
+                .flatMap(loaded -> {
+                    loaded.pay();
+                    return Mono.fromCompletionStage(() -> adapter.save(loaded));
+                })
+                .then(load(o.id()));
+
+        StepVerifier.create(flow)
+                .assertNext(paid -> {
+                    assertEquals(2L, paid.version());
+                    assertEquals(OrderStatus.PAID, paid.status());
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Ein veralteter Stand führt beim Update zu ConcurrentAggregateUpdateException")
+    void staleUpdateFailsWithConcurrentAggregateUpdate() {
+        var o = placedOrder();
+
+        Mono<Order> flow = Mono.fromCompletionStage(() -> adapter.save(o))
+                .then(Mono.zip(load(o.id()), load(o.id())))
+                .flatMap(copies -> {
+                    copies.getT1().pay();
+                    copies.getT2().pay();
+                    return Mono.fromCompletionStage(() -> adapter.save(copies.getT1()))
+                            .then(Mono.fromCompletionStage(() -> adapter.save(copies.getT2())));
+                });
+
+        StepVerifier.create(flow)
+                .expectError(ConcurrentAggregateUpdateException.class)
+                .verify();
+    }
+
+    @Test
+    @DisplayName("Ein Update lässt created_at unverändert")
+    void updateKeepsCreatedAt() {
+        var o = placedOrder();
+        Mono<LocalDateTime> readCreatedAt = db.sql("SELECT created_at FROM orders WHERE id = :id")
+                .bind("id", o.id().value())
+                .map(row -> row.get("created_at", LocalDateTime.class))
+                .one();
+
+        Mono<LocalDateTime[]> flow = Mono.fromCompletionStage(() -> adapter.save(o))
+                .then(readCreatedAt)
+                .flatMap(before -> load(o.id())
+                        .delayElement(Duration.ofMillis(1500))
+                        .flatMap(loaded -> {
+                            loaded.pay();
+                            return Mono.fromCompletionStage(() -> adapter.save(loaded));
+                        })
+                        .then(readCreatedAt)
+                        .map(after -> new LocalDateTime[] {before, after}));
+
+        StepVerifier.create(flow).assertNext(v -> assertEquals(v[0], v[1])).verifyComplete();
+    }
+
+    private static Order placedOrder() {
+        var o = new Order(CustomerId.newId(), new Money(new BigDecimal("12.34")));
+        o.place();
+        return o;
+    }
+
+    private static Mono<Order> load(OrderId id) {
+        return Mono.fromCompletionStage(() -> adapter.findById(id))
+                .map(opt -> opt.orElseThrow(() -> new AssertionError("Order not found: " + id.value())));
     }
 }

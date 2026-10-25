@@ -89,12 +89,12 @@
         <version>${openapi-generator.version}</version>
         <executions>
           <execution>
-            <id>generate-orders-api</id>
+            <id>generate-api</id>
             <goals>
               <goal>generate</goal>
             </goals>
             <configuration>
-              <inputSpec>${project.basedir}/src/main/resources/openapi/orders.yaml</inputSpec>
+              <inputSpec>${project.basedir}/src/main/resources/openapi/api.yaml</inputSpec>
               <generatorName>spring</generatorName>
               <apiPackage>net.rsworld.example.dddonion.infrastructure.web.api</apiPackage>
               <modelPackage>net.rsworld.example.dddonion.infrastructure.web.dto</modelPackage>

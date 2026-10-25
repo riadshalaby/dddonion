@@ -3,6 +3,8 @@ package net.rsworld.example.dddonion.boot;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.net.URI;
+import java.util.Map;
+import java.util.UUID;
 import net.rsworld.example.dddonion.bootstrap.DddOnionApplication;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,13 +60,30 @@ class WebfluxOrderApiIT {
                 WebTestClient.bindToServer().baseUrl("http://localhost:" + port).build();
     }
 
+    private String registerCustomer(String creditLimit) {
+        var body = client.post()
+                .uri("/customers")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"email\": \"it-" + UUID.randomUUID() + "@example.com\", \"creditLimit\": " + creditLimit
+                        + "}")
+                .exchange()
+                .expectStatus()
+                .isCreated()
+                .expectBody(Map.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(body).isNotNull();
+        return (String) body.get("customerId");
+    }
+
     @Test
     @DisplayName("Erstellt eine Order (201 + Location) und liest sie anschließend per GET wieder aus")
     void createThenGetOrder_roundtrip() {
+        String customerId = registerCustomer("1000");
         EntityExchangeResult<byte[]> created = client.post()
                 .uri("/orders")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"customerEmail\": \"test@example.com\", \"total\": 19.99}")
+                .bodyValue("{\"customerId\": \"" + customerId + "\", \"total\": 19.99}")
                 .exchange()
                 .expectStatus()
                 .isCreated()
@@ -86,8 +105,8 @@ class WebfluxOrderApiIT {
                 .expectHeader()
                 .contentTypeCompatibleWith(MediaType.APPLICATION_JSON)
                 .expectBody()
-                .jsonPath("$.customerEmail")
-                .isEqualTo("test@example.com")
+                .jsonPath("$.customerId")
+                .isEqualTo(customerId)
                 .jsonPath("$.status")
                 .isEqualTo("PLACED");
     }
@@ -98,7 +117,7 @@ class WebfluxOrderApiIT {
         client.post()
                 .uri("/orders")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue("{\"customerEmail\": \"a@b\", \"total\": 19.99}")
+                .bodyValue("{\"customerId\": \"not-a-uuid\", \"total\": 19.99}")
                 .exchange()
                 .expectStatus()
                 .isBadRequest()
@@ -107,15 +126,80 @@ class WebfluxOrderApiIT {
     }
 
     @Test
+    @DisplayName("Weist eine Order für einen unbekannten Customer mit 422 problem+json zurück")
+    void createOrder_shouldReturn422ForUnknownCustomer() {
+        client.post()
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"customerId\": \"" + UUID.randomUUID() + "\", \"total\": 1.00}")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(422)
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
+    @DisplayName("Lehnt eine Order über dem Kreditlimit mit 422 ab und akzeptiert sie exakt am Limit")
+    void createOrder_shouldReturn422WhenCreditLimitExceeded() {
+        String customerId = registerCustomer("10");
+
+        client.post()
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"customerId\": \"" + customerId + "\", \"total\": 10.01}")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(422)
+                .expectHeader()
+                .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+
+        client.post()
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"customerId\": \"" + customerId + "\", \"total\": 10.00}")
+                .exchange()
+                .expectStatus()
+                .isCreated();
+    }
+
+    @Test
     @DisplayName("Liefert 404 problem+json für eine unbekannte Order")
     void getOrder_shouldReturn404ForUnknownId() {
         client.get()
-                .uri("/orders/does-not-exist")
+                .uri("/orders/7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d")
                 .exchange()
                 .expectStatus()
                 .isNotFound()
                 .expectHeader()
                 .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON);
+    }
+
+    @Test
+    @DisplayName("Misst jede Use-Case-Ausführung mit Use Case und Actor-Typ als Prometheus-Labels")
+    void exposesUseCaseMetricsPerActorType() {
+        String customerId = registerCustomer("1000");
+        client.post()
+                .uri("/orders")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("X-Actor-Type", "BUSINESS_CUSTOMER")
+                .bodyValue("{\"customerId\": \"" + customerId + "\", \"total\": 5.00}")
+                .exchange()
+                .expectStatus()
+                .isCreated()
+                .expectHeader()
+                .exists("X-Correlation-Id");
+
+        client.get()
+                .uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(String.class)
+                .value(body -> assertThat(body)
+                        .containsPattern("usecase_execution_seconds_count\\{[^}]*actor_type=\"BUSINESS_CUSTOMER\""
+                                + "[^}]*usecase=\"order.place\"[^}]*usecase_kind=\"command\"[^}]*}")
+                        .doesNotContain("correlation_id"));
     }
 
     @Test

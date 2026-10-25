@@ -1,16 +1,34 @@
 package net.rsworld.example.dddonion.arch;
 
+import static com.tngtech.archunit.base.DescribedPredicate.alwaysTrue;
+import static com.tngtech.archunit.core.domain.JavaAccess.Predicates.target;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.simpleNameEndingWith;
+import static com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaAccess;
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaCodeUnitAccess;
+import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import net.rsworld.example.dddonion.architecture.ApplicationComponent;
+import net.rsworld.example.dddonion.architecture.UseCase;
 
 /** ArchUnit rules for DDD + Onion + Hex with a relaxed application whitelist. */
-@AnalyzeClasses(packages = "net.rsworld.example.dddonion")
+@AnalyzeClasses(packages = "net.rsworld.example.dddonion", importOptions = ImportOption.DoNotIncludeTests.class)
 public class ArchitectureTest {
 
     /* --- Domain purity --- */
@@ -52,6 +70,8 @@ public class ArchitectureTest {
                     // own code
                     "..application..",
                     "..domain..",
+                    // architecture annotations
+                    "net.rsworld.example.dddonion.architecture..",
                     // JDK
                     "java..",
                     "javax..",
@@ -75,6 +95,108 @@ public class ArchitectureTest {
             .resideInAPackage("..domain..*..repository..")
             .should()
             .beInterfaces();
+
+    /** Use case ports are annotated interfaces, so name and kind are explicit. */
+    @ArchTest
+    static final ArchRule use_case_ports_are_annotated_interfaces = classes()
+            .that()
+            .resideInAPackage("..application..usecase..")
+            .should()
+            .beInterfaces()
+            .andShould()
+            .beAnnotatedWith(UseCase.class);
+
+    /** Services are only reachable through their use case interface, so their classes are not public. */
+    @ArchTest
+    static final ArchRule application_service_package_is_not_public = classes()
+            .that()
+            .resideInAPackage("..application..service..")
+            .and()
+            .areTopLevelClasses()
+            .should()
+            .notBePublic();
+
+    /** Use case implementations are wired by component scan on {@code @ApplicationComponent}. */
+    @ArchTest
+    static final ArchRule use_case_implementations_are_application_components = classes()
+            .that()
+            .resideInAPackage("..application..")
+            .and()
+            .areNotInterfaces()
+            .and(implementAUseCase())
+            .should()
+            .beAnnotatedWith(ApplicationComponent.class);
+
+    @ArchTest
+    static final ArchRule use_cases_do_not_call_use_cases = noClasses()
+            .that()
+            .resideInAPackage("..application..service..")
+            .should()
+            .accessTargetWhere(target(owner(resideInAPackage("..application..usecase.."))))
+            .because("shared logic belongs in a package-private component, not in another use case");
+
+    private static DescribedPredicate<JavaClass> implementAUseCase() {
+        return DescribedPredicate.describe(
+                "implement a @UseCase interface",
+                javaClass -> javaClass.getAllRawInterfaces().stream().anyMatch(i -> i.isAnnotatedWith(UseCase.class)));
+    }
+
+    /* --- Aggregate boundaries --- */
+
+    /** Aggregates reference each other in domain code only through {@code *Id} types. */
+    @ArchTest
+    static final ArchRule aggregates_reference_each_other_only_by_id = slices().matching("..domain.(*)..")
+            .should()
+            .notDependOnEachOther()
+            .ignoreDependency(alwaysTrue(), resideInAPackage("..domain.common.."))
+            .ignoreDependency(alwaysTrue(), simpleNameEndingWith("Id"));
+
+    /** Use cases of different aggregates are independent; only context and event ports are shared. */
+    @ArchTest
+    static final ArchRule aggregate_use_cases_are_independent = slices().matching("..application.(*)..")
+            .should()
+            .notDependOnEachOther()
+            .ignoreDependency(alwaysTrue(), resideInAnyPackage("..application.context..", "..application.event.."));
+
+    private static final Pattern REPOSITORY_AGGREGATE = Pattern.compile("\\.domain\\.([^.]+)\\.repository(\\.|$)");
+    private static final Pattern SERVICE_AGGREGATE = Pattern.compile("\\.application\\.([^.]+)\\.service(\\.|$)");
+
+    /** A service may use repositories of other aggregates only for reads ({@code find*}, {@code exists*}). */
+    @ArchTest
+    static final ArchRule aggregates_write_only_their_own_repository = classes()
+            .that()
+            .resideInAPackage("..application..service..")
+            .should(accessForeignRepositoriesOnlyReadOnly())
+            .because("one command changes one aggregate; foreign repositories are read-only (find*/exists*),"
+                    + " other aggregates react through events");
+
+    private static ArchCondition<JavaClass> accessForeignRepositoriesOnlyReadOnly() {
+        return new ArchCondition<>("access repositories of other aggregates only through find* or exists* methods") {
+            @Override
+            public void check(JavaClass service, ConditionEvents events) {
+                Matcher own = SERVICE_AGGREGATE.matcher(service.getPackageName());
+                if (!own.find()) {
+                    return;
+                }
+                String ownAggregate = own.group(1);
+                // accesses include method calls and method references
+                for (JavaAccess<?> access : service.getAccessesFromSelf()) {
+                    if (!(access instanceof JavaCodeUnitAccess<?>)) {
+                        continue;
+                    }
+                    String name = access.getTarget().getName();
+                    Matcher target =
+                            REPOSITORY_AGGREGATE.matcher(access.getTargetOwner().getPackageName());
+                    boolean foreignRepository =
+                            target.find() && !target.group(1).equals(ownAggregate);
+                    boolean readOnly = name.startsWith("find") || name.startsWith("exists");
+                    if (foreignRepository && !readOnly) {
+                        events.add(SimpleConditionEvent.violated(access, access.getDescription()));
+                    }
+                }
+            }
+        };
+    }
 
     /* --- Layered architecture incl. 'monitor' layer --- */
 
@@ -131,6 +253,16 @@ public class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage("..infrastructure.persistence..", "..monitor..");
+
+    /** Inbound adapters (HTTP, events) reach the domain only through use cases, never through repositories. */
+    @ArchTest
+    static final ArchRule inbound_adapters_do_not_access_repositories = noClasses()
+            .that()
+            .resideInAnyPackage("..infrastructure.web..", "..infrastructure.event..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("..domain..repository..")
+            .because("inbound adapters go through use cases, which own loading and saving aggregates");
 
     /** Only the bootstrap module may declare @SpringBootApplication. */
     @ArchTest

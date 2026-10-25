@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.Version;
+import org.springframework.data.annotation.ReadOnlyProperty;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -19,8 +19,8 @@ public class OrderRow {
     @Id
     private String id;
 
-    @Column("customer_email")
-    private String customerEmail;
+    @Column("customer_id")
+    private String customerId;
 
     @Column("total")
     private BigDecimal total;
@@ -28,12 +28,15 @@ public class OrderRow {
     @Column("status")
     private String status;
 
-    @Version
-    private Long version; // Spring Data R2DBC uses this for optimistic locking
+    @Column("version")
+    private Long version; // domain version (event sequence); optimistic locking is done by OrderRepositoryAdapter
 
+    // managed by the database (DEFAULT / ON UPDATE); never written by the application
+    @ReadOnlyProperty
     @Column("created_at")
     private LocalDateTime createdAt;
 
+    @ReadOnlyProperty
     @Column("updated_at")
     private LocalDateTime updatedAt;
 }

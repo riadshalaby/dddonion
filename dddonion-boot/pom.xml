@@ -9,6 +9,10 @@
 
   <artifactId>dddonion-boot</artifactId>
 
+  <properties>
+    <spring-boot.run.skip>false</spring-boot.run.skip>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -17,6 +21,16 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <!-- Use-case observability: Reactor context -> MDC bridge, MDC onto async listener threads, Prometheus scrape endpoint -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>context-propagation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+      <scope>runtime</scope>
     </dependency>
 
     <dependency>
@@ -37,6 +51,11 @@
     <dependency>
       <groupId>net.rsworld.example.dddonion</groupId>
       <artifactId>dddonion-adapters-webflux</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.rsworld.example.dddonion</groupId>
+      <artifactId>dddonion-adapters-events</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -79,6 +98,11 @@
     </dependency>
 
     <!-- Test -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-observation-test</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
