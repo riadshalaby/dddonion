@@ -25,7 +25,7 @@ dddonion/
 |  |- domain/order/event/OrderPlaced
 |  \- domain/order/repository/OrderRepository (Port)
 |- dddonion-architecture
-|  \- architecture/UseCase, ApplicationComponent
+|  \- architecture/UseCase, ApplicationComponent, TransactionalUseCase
 |- dddonion-application
 |  |- application/event/DomainEventPublisherPort
 |  |- application/context/UseCaseMetadata, ActorType, UseCaseContextKeys
@@ -43,7 +43,9 @@ dddonion/
 |  \- monitor/DomainEventLoggingListener
 |- dddonion-boot
 |  |- bootstrap/DddOnionApplication, BeansConfig (nur Adapter), ApplicationWiringConfig, AsyncConfig
-|  \- bootstrap/observability/UseCaseObservability, UseCaseObservabilityPostProcessor, AuditLogObservationHandler
+|  |- bootstrap/observability/UseCaseObservability, AuditLogObservationHandler
+|  |- bootstrap/usecase/UseCasePipelinePostProcessor, UseCasePipelineConfig
+|  \- bootstrap/transaction/UseCaseTransaction
 \- dddonion-archunit
    \- Architekturregeln (Layer, Abhängigkeiten, Adapter-Isolation, Use-Case-Konventionen, Aggregate-Grenzen)
 ```
@@ -135,7 +137,7 @@ Jeder Use Case erhält explizit `UseCaseMetadata` (`actorType`, `channel`, `corr
 - **Name**: Das Label `usecase` kommt aus `@UseCase.name` (z. B. `order.place`, Konvention `<aggregate>.<verb>`, kleingeschrieben, Segmente per Punkt getrennt, Bindestriche erlaubt, z. B. `customer.change-credit-limit`). Es ist Teil des Metrik-Vertrags und bleibt beim Umbenennen des Interfaces stabil; `usecase_kind` stammt aus `@UseCase.kind`.
 - **Audit-Log**: genau eine Zeile pro Ausführung auf Logger `audit`, inkl. Dauer; mit Profil `json-logs` als ECS-JSON mit eigenen Feldern (für Loki).
 - **MDC**: `usecase`, `actorType`, `correlationId` stehen in jeder Logzeile innerhalb des Use Cases, auch im asynchronen `DomainEventLoggingListener`. Auch `customer.record-order-exposure` trägt die Correlation-ID des auslösenden HTTP-Aufrufs. Der `OrderPlacedExposureListener` setzt `usecase` dabei auf `customer.record-order-exposure`, nicht auf den auslösenden Use Case.
-- Das Wrapping passiert automatisch (`UseCaseObservabilityPostProcessor`). Beim Start wird erzwungen:
+- Das Wrapping passiert automatisch (`UseCasePipelinePostProcessor`). Beim Start wird erzwungen:
   - `Mono`-Rückgabe und `UseCaseMetadata`-Parameter
   - gültiger, eindeutiger Name
   - genau ein `@UseCase`-Interface pro Bean
@@ -167,6 +169,14 @@ Regeln, die ArchUnit prüft:
 - Use Cases rufen keine Use Cases auf. Geteilter Code kommt als paketinterne `@ApplicationComponent` ins selbe `service`-Paket.
 - Services sind nicht `public`.
 - Klassen, die ein `@UseCase`-Interface implementieren, tragen `@ApplicationComponent`.
+
+## Transaktionen
+- **Annotation**: `@TransactionalUseCase` (Modul `dddonion-architecture`, ohne Attribute) steht an der **Service-Klasse**, nicht am Interface. Die Application-Schicht bleibt frei von Spring.
+- **Nur für `COMMAND`**: Die Klasse muss ein `@UseCase`-Interface mit `kind = COMMAND` implementieren, sonst bricht der Start ab.
+- **Pipeline** (außen nach innen): Observability, Retry, Transaktion, Service. Es gibt eine Observation pro Aufruf, auch bei Wiederholungen.
+- **Retry**: nur bei `ConcurrentAggregateUpdateException`, höchstens 3 Versuche, Backoff ab 10 ms bis 200 ms, Jitter 0,5. Jeder Versuch ruft den Service neu auf, in einer neuen Transaktion. Sind die Versuche erschöpft, kommt die ursprüngliche Exception durch (REST: 409).
+- **Warum zusammen**: Transaktion und Retry gehören zusammen, weil jeder Versuch seine Aggregates frisch laden muss.
+- Umgesetzt in `UseCaseTransaction` (Boot-Modul) mit dem `TransactionalOperator` von Spring Boot.
 
 ## Technischer Stand
 - Spring Boot: `4.0.1`
