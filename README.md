@@ -8,7 +8,6 @@ Dieses Projekt demonstriert Domain-Driven Design (DDD), Onion Architecture und H
 - Persistenz: R2DBC mit MariaDB
 - Migrationen: Liquibase (formatted SQL)
 - Ops: Actuator Readiness/Liveness, ArchUnit
-- Eingehende Events: asynchrone In-Process-Events über Spring Events, Adapter-Modul `dddonion-adapter-events`
 - Monitoring: separates Modul `dddonion-monitor` mit asynchronem Domain-Event-Logging
 - Tests: JUnit 6/Jupiter, Reactor Test, RestAssured, Testcontainers (MariaDB)
 
@@ -18,7 +17,7 @@ dddonion/
 |- dddonion-domain
 |  |- domain/common/DomainEvent, Money, ConcurrentAggregateUpdateException
 |  |- domain/customer/model/Customer, CustomerId, CustomerEmail
-|  |- domain/customer/command/RegisterCustomerCommand, ChangeCreditLimitCommand, RecordOrderExposureCommand
+|  |- domain/customer/command/RegisterCustomerCommand, ChangeCreditLimitCommand
 |  |- domain/customer/repository/CustomerRepository (Port)
 |  |- domain/order/model/Order, OrderId, OrderStatus
 |  |- domain/order/command/PlaceOrderCommand
@@ -29,16 +28,14 @@ dddonion/
 |- dddonion-application
 |  |- application/event/DomainEventPublisherPort
 |  |- application/context/UseCaseMetadata, ActorType, UseCaseContextKeys
-|  |- application/customer/usecase/RegisterCustomerUseCase, GetCustomerUseCase, ChangeCreditLimitUseCase, RecordOrderExposureUseCase
-|  |- application/customer/service/RegisterCustomerService, GetCustomerService, ChangeCreditLimitService, RecordOrderExposureService, CustomerUpdater
+|  |- application/customer/usecase/RegisterCustomerUseCase, GetCustomerUseCase, ChangeCreditLimitUseCase
+|  |- application/customer/service/RegisterCustomerService, GetCustomerService, ChangeCreditLimitService, CustomerUpdater
 |  |- application/order/usecase/PlaceOrderUseCase, GetOrderUseCase
 |  \- application/order/service/PlaceOrderService, GetOrderService
 |- dddonion-adapter-webflux
 |  \- infrastructure/web/OrderController, CustomerController, UseCaseMetadataFactory
 |- dddonion-adapter-r2dbc
 |  \- infrastructure/persistence/r2dbc/... (Order- und Customer-Adapter, je mit Repo + Mapper + DTO)
-|- dddonion-adapter-events
-|  \- infrastructure/event/OrderPlacedExposureListener
 |- dddonion-monitor
 |  \- monitor/DomainEventLoggingListener
 |- dddonion-boot
@@ -54,17 +51,17 @@ dddonion/
 - Domain: enthält Aggregate, Value Objects, Domain Events und Domain-Ports; keine Abhängigkeit auf Spring/Infrastruktur. Einzige Zusatzabhängigkeit ist `reactor-core`: Repository-Ports liefern `Mono` (lazy, ein leerer `Mono` bedeutet „nicht gefunden“), damit der Reactor-Context bis in die Adapter durchgereicht wird.
 - Architecture: Spring-freie Annotationen, die Use Cases beschreiben und für das Wiring markieren; einzige erlaubte Zusatzabhängigkeit der Application-Schicht.
 - Application: orchestriert Use Cases, ruft Domain und Ports auf.
-- Adapter (Infrastruktur): implementieren Ports und binden Frameworks/IO (HTTP, DB, eingehende Events).
+- Adapter (Infrastruktur): implementieren Ports und binden Frameworks/IO (HTTP, DB).
 - Boot: Composition Root: Adapter-Beans in `BeansConfig`; Application Services per Component-Scan auf `@ApplicationComponent`; jeder Use Case wird automatisch beobachtet; `AsyncConfig` aktiviert `@EnableAsync` und stellt den `applicationTaskExecutor` (virtuelle Threads, MDC-Weitergabe) für alle asynchronen Listener.
 - Monitor: asynchrone Beobachtung von Domain Events via Spring Events; enthält nur den Listener, der Executor kommt aus Boot.
 
 ## Mehrere Aggregates
 - **Referenz nur per ID:** `Order` hält `CustomerId` statt `Customer`, so bleiben Aggregates lose gekoppelt. ArchUnit: `aggregates_reference_each_other_only_by_id`.
-- **Ein Aggregate pro Command:** `PlaceOrder` liest den Customer und ändert nur die Order, damit ein Command genau ein Aggregate ändert. Repositories fremder Aggregates sind für Services nur lesbar (ausschließlich `find*`/`exists*`), jeder andere Zugriff, auch per Methodenreferenz, ist verboten. ArchUnit: `aggregates_write_only_their_own_repository`.
+- **Mehrere Aggregates pro Transaktion:** `PlaceOrder` ändert Customer und Order atomar: Der Kredit wird reserviert und die Order angelegt, beides in einer Transaktion (siehe "Transaktionen").
 - **Eingehende Adapter nur über Use Cases:** Klassen in `infrastructure.web` und `infrastructure.event` greifen nicht auf Repositories zu. ArchUnit: `inbound_adapters_do_not_access_repositories`.
-- **Reaktion über Events:** `customer.record-order-exposure` reagiert auf `OrderPlaced`, eventual consistent (siehe "Datenfluss: offener Betrag").
+- **Reaktion über Events:** Nur der Monitor reagiert auf Domain Events (`DomainEventLoggingListener`); fachliche Folgen laufen nicht über Events.
 - **Geteilter Code:** ein paketinterner `CustomerUpdater` statt Basisklasse oder Use-Case-zu-Use-Case-Aufruf, damit Use Cases unabhängig bleiben. ArchUnit: `use_cases_do_not_call_use_cases` und `aggregate_use_cases_are_independent`.
-- **Fachlogik am Aggregate:** Die Kreditprüfung ist `Customer.ensureCreditFor` und kein Domain Service. Ein Domain Service ist erst gerechtfertigt, wenn eine Regel den Zustand mehrerer Aggregates braucht.
+- **Fachlogik am Aggregate:** Die Kreditprüfung samt Reservierung ist `Customer.reserveCredit` und kein Domain Service. Ein Domain Service ist erst gerechtfertigt, wenn eine Regel den Zustand mehrerer Aggregates braucht.
 
 Zielbild:
 - Ein Bounded Context pro Microservice, mehrere Aggregates je Service.
@@ -104,39 +101,21 @@ Zielbild:
 ## Datenfluss: Order anlegen
 1. HTTP `POST /orders` mit JSON-Body `{ "customerId": ..., "total": ... }` trifft auf `OrderController`.
 2. Controller baut aus den Headern `UseCaseMetadata` und ruft `PlaceOrderUseCase`. Das Bean ist ein Proxy, den `UseCaseObservabilityPostProcessor` um `PlaceOrderService` gelegt hat.
-3. `PlaceOrderService` lädt den `Customer` lesend über `CustomerRepository` und ruft `ensureCreditFor(total)`. Der Customer wird nicht gespeichert (ein Aggregate pro Command).
+3. `PlaceOrderService` lädt den `Customer` über `CustomerRepository` und ruft `reserveCredit(total)`. Übersteigt der offene Betrag das Limit, bricht der Use Case ab.
 4. `PlaceOrderService` erstellt ein `Order`-Aggregate und führt `order.place()` aus.
-5. Repository-Port `OrderRepository` persistiert das Aggregate via R2DBC-Adapter.
+5. Customer und Order werden in einer Transaktion gespeichert, zuerst der Customer (`CustomerRepository`), dann die Order (`OrderRepository`, jeweils R2DBC-Adapter). Bei einem Versionskonflikt wiederholt die Pipeline den ganzen Use Case (siehe "Transaktionen").
 6. Entstandene Domain Events werden nach erfolgreichem Persistieren über den Application-Port `DomainEventPublisherPort` publiziert.
 7. `DomainEventLoggingListener` verarbeitet diese Events asynchron.
-
-## Datenfluss: offener Betrag
-1. `OrderPlaced` wird publiziert.
-2. `OrderPlacedExposureListener` läuft asynchron auf dem `applicationTaskExecutor`.
-3. Er baut `UseCaseMetadata` (Channel `event`, Actor und Correlation aus dem MDC des auslösenden Aufrufs).
-4. Er ruft `RecordOrderExposureUseCase` auf.
-5. `CustomerUpdater` lädt, ändert und speichert den Customer. Bei einem Konflikt wiederholt er mit frischem Stand, mit exponentiellem Backoff (10 ms bis 200 ms) und Jitter.
-6. Fehler werden geloggt (Audit `outcome=ERROR`) und nicht weitergereicht.
-
-Grenzen:
-- Eventual Consistency: Parallele Orders können das Limit gemeinsam überschreiten. Die Überschreitung bleibt bestehen, bis der offene Betrag korrigiert wird.
-- Versuche bei Konflikten:
-  - REST (`customer.change-credit-limit`): 3 Versuche, danach `409`.
-  - Event (`customer.record-order-exposure`): 10 Versuche mit Backoff und Jitter, da kein Client einen `409` erhält.
-- Ein Konflikt heißt, dass ein anderes Update committet hat. Bei n Versuchen bleiben daher bis zu n gleichzeitige Updates verlustfrei.
-- Die Versuche sind trotzdem begrenzt: Darüber hinaus kann ein offener Betrag verloren gehen. Das wird geloggt und mit `outcome=ERROR` auditiert, aber nicht wiederholt.
-- Ohne Outbox gehen Events bei einem Absturz verloren.
-- Eine erneute Zustellung würde doppelt zählen, das löst der Outbox/Inbox-Plan.
 
 ## Use-Case-Audit (Logs & Metriken)
 Jeder Use Case erhält explizit `UseCaseMetadata` (`actorType`, `channel`, `correlationId`) aus dem Application-Layer; der Domain-Command bleibt frei davon.
 - **Wer**: Header `X-Actor-Type` (`PRIVATE_CUSTOMER`, `BUSINESS_CUSTOMER`, `EXTERNAL_ERP`); fehlt er, wird `UNKNOWN` erfasst. Selbstdeklariert, also nur für Auswertungen, nicht für Autorisierung.
-- **Kanal**: `channel` ist `rest` (HTTP-Adapter) oder `event` (Event-Adapter).
+- **Kanal**: `channel` ist `rest` (HTTP-Adapter).
 - **Korrelation**: Header `X-Correlation-Id` (optional, sonst generiert, wird in der Antwort zurückgegeben).
 - **Metrik**: Timer `usecase.execution` (Prometheus `usecase_execution_seconds_*`) mit Labels `usecase`, `usecase_kind` (`command`/`query`), `actor_type`, `channel`, `outcome` (`SUCCESS`/`EMPTY`/`ERROR`/`CANCELLED`; `EMPTY` = kein Ergebnis bei Query/wertliefernden Use Cases, ein `Mono<Void>`-Use-Case gilt bei Abschluss als `SUCCESS`), `error`; unter `/actuator/prometheus`. Die Correlation-ID ist bewusst kein Label (Kardinalität).
 - **Name**: Das Label `usecase` kommt aus `@UseCase.name` (z. B. `order.place`, Konvention `<aggregate>.<verb>`, kleingeschrieben, Segmente per Punkt getrennt, Bindestriche erlaubt, z. B. `customer.change-credit-limit`). Es ist Teil des Metrik-Vertrags und bleibt beim Umbenennen des Interfaces stabil; `usecase_kind` stammt aus `@UseCase.kind`.
 - **Audit-Log**: genau eine Zeile pro Ausführung auf Logger `audit`, inkl. Dauer; mit Profil `json-logs` als ECS-JSON mit eigenen Feldern (für Loki).
-- **MDC**: `usecase`, `actorType`, `correlationId` stehen in jeder Logzeile innerhalb des Use Cases, auch im asynchronen `DomainEventLoggingListener`. Auch `customer.record-order-exposure` trägt die Correlation-ID des auslösenden HTTP-Aufrufs. Der `OrderPlacedExposureListener` setzt `usecase` dabei auf `customer.record-order-exposure`, nicht auf den auslösenden Use Case.
+- **MDC**: `usecase`, `actorType`, `correlationId` stehen in jeder Logzeile innerhalb des Use Cases, auch im asynchronen `DomainEventLoggingListener`.
 - Das Wrapping passiert automatisch (`UseCasePipelinePostProcessor`). Beim Start wird erzwungen:
   - `Mono`-Rückgabe und `UseCaseMetadata`-Parameter
   - gültiger, eindeutiger Name
@@ -240,10 +219,11 @@ open http://localhost:8080/swagger-ui.html
 - Mit Lombok auf JDK 25 kann während der Kompilierung eine `sun.misc.Unsafe`-Warnung erscheinen.
 - Ungültige Eingaben (z.B. ungültige E-Mail-Adresse bei der Customer-Registrierung oder negativer Betrag) werden mit HTTP 400 Bad Request als `application/problem+json` (RFC 7807) beantwortet.
 - Die DB-Tabelle `orders` enthält die Zeitstempel-Spalten `created_at` und `updated_at`, die über `OrderRow` gelesen werden können.
-- Das Domain-Modell kennt drei Zustände: `NEW` → `PLACED` (via `order.place()`) → `PAID` (via `order.pay()`). Ein `Customer` hat ein Kreditlimit und einen offenen Betrag; `ensureCreditFor` lässt Orders bis genau zum Limit zu.
+- Das Domain-Modell kennt drei Zustände: `NEW` → `PLACED` (via `order.place()`) → `PAID` (via `order.pay()`). Ein `Customer` hat ein Kreditlimit und einen offenen Betrag; `reserveCredit` lässt Orders bis genau zum Limit zu.
 - Die Tabelle `customers` hat eine eindeutige E-Mail (`uq_customers_email`) und `CHECK`-Constraints (Kreditlimit und offener Betrag nicht negativ). Eine bereits registrierte E-Mail ergibt `EmailAlreadyRegisteredException`.
 - Beide Adapter nutzen Optimistic Locking mit der Version aus dem Domain-Objekt, nie aus der DB. Ein veralteter Stand führt zu `ConcurrentAggregateUpdateException`.
   - Customer: reines Concurrency-Token, verwaltet über Spring Datas `@Version`.
+    In einer Transaktion meldet MariaDB (Snapshot-Isolation) einen veralteten Stand als Fehler 1020 ("Record has changed since last read") statt als 0 geänderte Zeilen; der Adapter bildet beides auf `ConcurrentAggregateUpdateException` ab.
   - Order: die Version ist zugleich die Event-Sequenz und steigt mit jedem Übergang (`place()` → 1, `pay()` → 2). Der Adapter speichert sie unverändert und aktualisiert nur, wenn die Zeile noch `loadedVersion()` trägt.
 - `created_at`/`updated_at` verwaltet die DB; die Rows markieren sie als `@ReadOnlyProperty`, damit ein Update sie nicht überschreibt.
 - Das Schema wird direkt in den bestehenden Changesets gepflegt, ohne Migrationen. Nach einer Schemaänderung muss die lokale Datenbank neu aufgebaut werden (`docker-compose down -v && docker-compose up -d`). Rückwärtskompatibilität ist für das Beispielprojekt kein Ziel.

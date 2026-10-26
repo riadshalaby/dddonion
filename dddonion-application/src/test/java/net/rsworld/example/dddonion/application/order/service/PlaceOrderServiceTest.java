@@ -1,5 +1,6 @@
 package net.rsworld.example.dddonion.application.order.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -8,6 +9,7 @@ import net.rsworld.example.dddonion.application.context.ActorType;
 import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.application.order.UnknownCustomerException;
+import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import net.rsworld.example.dddonion.domain.common.Money;
 import net.rsworld.example.dddonion.domain.customer.model.CreditLimitExceededException;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import reactor.test.publisher.PublisherProbe;
@@ -55,6 +58,7 @@ class PlaceOrderServiceTest {
     }
 
     private void saveSucceeds() {
+        when(customers.save(any(Customer.class))).thenAnswer(inv -> Mono.just((Customer) inv.getArgument(0)));
         when(orders.save(any(Order.class))).thenAnswer(inv -> Mono.just((Order) inv.getArgument(0)));
         when(publisher.publish(any())).thenReturn(Mono.empty());
     }
@@ -73,6 +77,23 @@ class PlaceOrderServiceTest {
         ArgumentCaptor<DomainEvent> published = ArgumentCaptor.forClass(DomainEvent.class);
         verify(publisher, times(1)).publish(published.capture());
         verify(orders, times(1)).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("Speichert den Customer mit reserviertem Kredit vor der Order")
+    void savesCustomerWithReservedCreditBeforeOrder() {
+        customerExists("1000.00", "10.00");
+        saveSucceeds();
+
+        StepVerifier.create(service.handle(cmd("42.50"), META))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        ArgumentCaptor<Customer> saved = ArgumentCaptor.forClass(Customer.class);
+        InOrder inOrder = inOrder(customers, orders);
+        inOrder.verify(customers).save(saved.capture());
+        inOrder.verify(orders).save(any(Order.class));
+        assertThat(saved.getValue().openAmount().amount()).isEqualByComparingTo("52.50");
     }
 
     @Test
@@ -97,6 +118,7 @@ class PlaceOrderServiceTest {
                 .expectError(UnknownCustomerException.class)
                 .verify();
 
+        verify(customers, never()).save(any());
         verifyNoInteractions(orders, publisher);
     }
 
@@ -109,26 +131,49 @@ class PlaceOrderServiceTest {
                 .expectError(CreditLimitExceededException.class)
                 .verify();
 
+        verify(customers, never()).save(any());
         verifyNoInteractions(orders, publisher);
     }
 
     @Test
-    @DisplayName("Speichert den Customer nie (ein Aggregate pro Command)")
-    void doesNotModifyCustomer() {
+    @DisplayName("Speichert weder Order noch Event, wenn das Speichern des Customers (Versionskonflikt) fehlschlägt")
+    void doesNotSaveOrderWhenCustomerSaveFails() {
         customerExists("1000.00", "0.00");
-        saveSucceeds();
+        RuntimeException conflict = new RuntimeException("version conflict");
+        when(customers.save(any(Customer.class))).thenReturn(Mono.error(conflict));
 
         StepVerifier.create(service.handle(cmd("10.00"), META))
-                .expectNextCount(1)
-                .verifyComplete();
+                .expectErrorMatches(err -> err == conflict)
+                .verify();
 
-        verify(customers, never()).save(any());
+        verifyNoInteractions(orders, publisher);
+    }
+
+    @Test
+    @DisplayName("Erzeugt bei jedem Subscribe eine neue Order-ID (Retry-fähig)")
+    void createsNewOrderPerSubscription() {
+        customerExists("1000.00", "0.00");
+        saveSucceeds();
+        var result = service.handle(cmd("10.00"), META);
+
+        var first = result.block();
+        var second = result.block();
+
+        assertThat(first).isNotEqualTo(second);
+    }
+
+    @Test
+    @DisplayName("Läuft als @TransactionalUseCase")
+    void isTransactional() {
+        assertThat(PlaceOrderService.class.isAnnotationPresent(TransactionalUseCase.class))
+                .isTrue();
     }
 
     @Test
     @DisplayName("Publiziert keine Domain-Events, wenn das Persistieren fehlschlägt")
     void doesNotPublishEventsWhenPersistenceFails() {
         customerExists("1000.00", "0.00");
+        when(customers.save(any(Customer.class))).thenAnswer(inv -> Mono.just((Customer) inv.getArgument(0)));
         RuntimeException boom = new RuntimeException("db unavailable");
         when(orders.save(any(Order.class))).thenReturn(Mono.error(boom));
 

@@ -113,7 +113,7 @@ class CustomerRepositoryAdapterIT {
         Customer c = newCustomer("update@example.com");
 
         Mono<long[]> flow = adapter.save(c).then(load(c.id())).flatMap(before -> {
-            before.recordOrder(new Money(new BigDecimal("10.00")));
+            before.reserveCredit(new Money(new BigDecimal("10.00")));
             return adapter.save(before).then(load(c.id())).map(after -> new long[] {before.version(), after.version()});
         });
 
@@ -128,8 +128,8 @@ class CustomerRepositoryAdapterIT {
         Mono<Void> flow = adapter.save(c)
                 .then(Mono.zip(load(c.id()), load(c.id())))
                 .flatMap(copies -> {
-                    copies.getT1().recordOrder(new Money(new BigDecimal("1.00")));
-                    copies.getT2().recordOrder(new Money(new BigDecimal("2.00")));
+                    copies.getT1().reserveCredit(new Money(new BigDecimal("1.00")));
+                    copies.getT2().reserveCredit(new Money(new BigDecimal("2.00")));
                     return adapter.save(copies.getT1()).then(adapter.save(copies.getT2()));
                 })
                 .then();
@@ -198,7 +198,7 @@ class CustomerRepositoryAdapterIT {
                 .flatMap(before -> load(c.id())
                         .delayElement(java.time.Duration.ofMillis(1500))
                         .flatMap(loaded -> {
-                            loaded.recordOrder(new Money(new BigDecimal("3.00")));
+                            loaded.reserveCredit(new Money(new BigDecimal("3.00")));
                             return adapter.save(loaded);
                         })
                         .then(readCreatedAt)

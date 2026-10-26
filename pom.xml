@@ -22,7 +22,6 @@
     <module>dddonion-application</module>
     <module>dddonion-adapter-webflux</module>
     <module>dddonion-adapter-r2dbc</module>
-    <module>dddonion-adapter-events</module>
     <module>dddonion-boot</module>
     <module>dddonion-archunit</module>
     <module>dddonion-monitor</module>

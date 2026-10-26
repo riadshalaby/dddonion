@@ -1,11 +1,9 @@
 package net.rsworld.example.dddonion.boot;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -15,16 +13,13 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import net.rsworld.example.dddonion.bootstrap.DddOnionApplication;
-import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
-import net.rsworld.example.dddonion.domain.order.event.OrderPlaced;
-import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.MediaType;
+import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -34,13 +29,13 @@ import org.testcontainers.mariadb.MariaDBContainer;
 
 @Testcontainers
 @SpringBootTest(classes = DddOnionApplication.class, webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class CustomerExposureIT {
+class CustomerCreditIT {
 
     @Value("${local.server.port}")
     int port;
 
     @Autowired
-    ApplicationEventPublisher events;
+    DatabaseClient db;
 
     private WebTestClient client;
 
@@ -117,28 +112,33 @@ class CustomerExposureIT {
         return new BigDecimal(String.valueOf(body.get("openAmount")));
     }
 
-    private void awaitOpenAmount(String customerId, String expected) {
-        await().atMost(Duration.ofSeconds(15))
-                .pollInterval(Duration.ofMillis(100))
-                .untilAsserted(() -> assertThat(openAmount(customerId)).isEqualByComparingTo(expected));
+    private long orderCount(String customerId) {
+        Long count = db.sql("SELECT COUNT(*) FROM orders WHERE customer_id = :id")
+                .bind("id", customerId)
+                .map(row -> row.get(0, Long.class))
+                .one()
+                .block(Duration.ofSeconds(10));
+        assertThat(count).isNotNull();
+        return count;
     }
 
     @Test
-    void placedOrderIncreasesOpenAmountEventually() {
+    void placedOrderReservesCreditImmediately() {
         String customerId = registerCustomer("100");
 
         assertThat(placeOrder(customerId, "60")).isEqualTo(201);
 
-        awaitOpenAmount(customerId, "60");
+        assertThat(openAmount(customerId)).isEqualByComparingTo("60");
     }
 
     @Test
     void orderBeyondRemainingCreditIsRejected() {
         String customerId = registerCustomer("100");
         assertThat(placeOrder(customerId, "60")).isEqualTo(201);
-        awaitOpenAmount(customerId, "60");
 
         assertThat(placeOrder(customerId, "50")).isEqualTo(422);
+
+        assertThat(openAmount(customerId)).isEqualByComparingTo("60");
     }
 
     /** Places {@code count} orders truly in parallel: every thread waits at a start gate before sending. */
@@ -165,58 +165,26 @@ class CustomerExposureIT {
     }
 
     @Test
-    void concurrentExposuresAreNotLost() throws Exception {
+    void concurrentOrdersWithinLimitAreAllAccepted() throws Exception {
         String customerId = registerCustomer("1000");
 
-        assertThat(placeOrdersConcurrently(customerId, 5, "10")).containsOnly(201);
+        assertThat(placeOrdersConcurrently(customerId, 3, "10")).containsOnly(201);
 
-        awaitOpenAmount(customerId, "50");
+        assertThat(openAmount(customerId)).isEqualByComparingTo("30");
+        assertThat(orderCount(customerId)).isEqualTo(3);
     }
 
     @Test
-    void burstOfTenExposuresIsNotLost() throws Exception {
-        String customerId = registerCustomer("1000");
-
-        // 10 = attempts on the event path: a conflict means another update committed, so 10 updates cannot lose any
-        assertThat(placeOrdersConcurrently(customerId, 10, "10")).containsOnly(201);
-
-        awaitOpenAmount(customerId, "100");
-    }
-
-    @Test
-    void exposureForUnknownCustomerIsAuditedAsError() {
-        events.publishEvent(new OrderPlaced(
-                OrderId.newId().value(), 1L, Instant.now(), CustomerId.newId().value(), new BigDecimal("10.00")));
-
-        await().atMost(Duration.ofSeconds(15))
-                .pollInterval(Duration.ofMillis(100))
-                .untilAsserted(() -> client.get()
-                        .uri("/actuator/prometheus")
-                        .exchange()
-                        .expectStatus()
-                        .isOk()
-                        .expectBody(String.class)
-                        .value(body -> assertThat(body)
-                                .containsPattern("usecase_execution_seconds_count\\{[^}]*channel=\"event\""
-                                        + "[^}]*outcome=\"ERROR\""
-                                        + "[^}]*usecase=\"customer.record-order-exposure\"[^}]*}")));
-    }
-
-    @Test
-    void exposureIsAudited() {
+    void concurrentOrdersNeverExceedTheLimit() throws Exception {
         String customerId = registerCustomer("100");
-        assertThat(placeOrder(customerId, "5")).isEqualTo(201);
-        awaitOpenAmount(customerId, "5");
 
-        client.get()
-                .uri("/actuator/prometheus")
-                .exchange()
-                .expectStatus()
-                .isOk()
-                .expectBody(String.class)
-                .value(body -> assertThat(body)
-                        .containsPattern("usecase_execution_seconds_count\\{[^}]*actor_type=\"BUSINESS_CUSTOMER\""
-                                + "[^}]*channel=\"event\"[^}]*outcome=\"SUCCESS\""
-                                + "[^}]*usecase=\"customer.record-order-exposure\"[^}]*}"));
+        List<Integer> statuses = placeOrdersConcurrently(customerId, 5, "30");
+
+        // how many requests win, lose the version race (409) or hit the limit (422) is timing dependent
+        assertThat(statuses).isSubsetOf(201, 409, 422);
+        long accepted = statuses.stream().filter(status -> status == 201).count();
+        assertThat(accepted).isBetween(1L, 3L);
+        assertThat(openAmount(customerId)).isEqualByComparingTo(BigDecimal.valueOf(30 * accepted));
+        assertThat(orderCount(customerId)).isEqualTo(accepted);
     }
 }

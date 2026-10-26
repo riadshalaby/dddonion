@@ -34,30 +34,24 @@ class CustomerTest {
     }
 
     @Test
-    @DisplayName("Allows an order up to exactly the limit")
-    void allowsOrderUpToExactlyTheLimit() {
+    @DisplayName("Reserves credit up to exactly the limit and leaves the version untouched")
+    void reservesCreditUpToExactlyTheLimit() {
         Customer c = customer("100", "40");
 
-        assertThatCode(() -> c.ensureCreditFor(Money.of("60"))).doesNotThrowAnyException();
-    }
+        c.reserveCredit(Money.of("60"));
 
-    @Test
-    @DisplayName("Rejects an order above the limit")
-    void rejectsOrderAboveTheLimit() {
-        Customer c = customer("100", "40");
-
-        assertThatThrownBy(() -> c.ensureCreditFor(Money.of("60.01"))).isInstanceOf(CreditLimitExceededException.class);
-    }
-
-    @Test
-    @DisplayName("recordOrder adds to the open amount and leaves the version untouched")
-    void recordOrderAddsToOpenAmount() {
-        Customer c = customer("100", "40");
-
-        c.recordOrder(Money.of("25"));
-
-        assertThat(c.openAmount().amount()).isEqualByComparingTo("65");
+        assertThat(c.openAmount().amount()).isEqualByComparingTo("100");
         assertThat(c.version()).isZero();
+    }
+
+    @Test
+    @DisplayName("Rejects a reservation above the limit and leaves the open amount unchanged")
+    void rejectsReservationAboveTheLimitUnchanged() {
+        Customer c = customer("100", "40");
+
+        assertThatThrownBy(() -> c.reserveCredit(Money.of("60.01"))).isInstanceOf(CreditLimitExceededException.class);
+
+        assertThat(c.openAmount().amount()).isEqualByComparingTo("40");
     }
 
     @Test
@@ -68,6 +62,6 @@ class CustomerTest {
         assertThatCode(() -> c.changeCreditLimit(Money.of("50"))).doesNotThrowAnyException();
 
         assertThat(c.creditLimit()).isEqualTo(Money.of("50"));
-        assertThatThrownBy(() -> c.ensureCreditFor(Money.of("0.01"))).isInstanceOf(CreditLimitExceededException.class);
+        assertThatThrownBy(() -> c.reserveCredit(Money.of("0.01"))).isInstanceOf(CreditLimitExceededException.class);
     }
 }
