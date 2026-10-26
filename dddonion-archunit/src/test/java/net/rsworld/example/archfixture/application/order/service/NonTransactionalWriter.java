@@ -4,17 +4,17 @@ import java.util.function.Consumer;
 import net.rsworld.example.archfixture.domain.customer.repository.FixtureCustomerRepository;
 import net.rsworld.example.archfixture.domain.order.repository.FixtureOrderRepository;
 
-/** Fixture: an order service with violating and allowed accesses to repositories. */
-class ForeignWriter {
+/** Fixture: a service without {@code @TransactionalUseCase} that writes through repositories and reads. */
+class NonTransactionalWriter {
     private final FixtureCustomerRepository customers;
     private final FixtureOrderRepository orders;
 
-    ForeignWriter(FixtureCustomerRepository customers, FixtureOrderRepository orders) {
+    NonTransactionalWriter(FixtureCustomerRepository customers, FixtureOrderRepository orders) {
         this.customers = customers;
         this.orders = orders;
     }
 
-    /** Violation: direct write call on a foreign aggregate. */
+    /** Violation: direct write call outside a transactional use case. */
     void writesViaCall(Object customer) {
         customers.save(customer);
     }
@@ -24,17 +24,17 @@ class ForeignWriter {
         return customers::save;
     }
 
-    /** Violation: non-save write on a foreign aggregate. */
+    /** Violation: non-save write outside a transactional use case. */
     void deletesForeign(Object customer) {
         customers.delete(customer);
     }
 
-    /** Allowed: foreign read. */
+    /** Allowed: reads need no transaction. */
     Object readsForeign(String id) {
         return customers.findById(id);
     }
 
-    /** Allowed: write to the own aggregate. */
+    /** Violation: write to the own aggregate is also a write outside a transaction. */
     void writesOwn(Object order) {
         orders.save(order);
     }

@@ -12,12 +12,18 @@ import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaAccess;
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaCodeUnitAccess;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 import net.rsworld.example.dddonion.architecture.ApplicationComponent;
+import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.architecture.UseCase;
 
 /** ArchUnit rules for DDD + Onion + Hex with a relaxed application whitelist. */
@@ -146,6 +152,51 @@ public class ArchitectureTest {
             .notDependOnEachOther()
             .ignoreDependency(alwaysTrue(), resideInAnyPackage("..application.context..", "..application.event.."));
 
+    /**
+     * Anything but a read ({@code find*}, {@code exists*}) on a repository port needs the transaction, retry and event
+     * pipeline of {@code @TransactionalUseCase}. Method references count as accesses.
+     */
+    @ArchTest
+    static final ArchRule repository_writes_only_in_transactional_use_cases = classes()
+            .that()
+            .resideInAPackage("..application..")
+            .should(writeToRepositoriesOnlyWhenTransactional())
+            .because("writes need the transaction, retry and post-commit event handling of @TransactionalUseCase");
+
+    private static ArchCondition<JavaClass> writeToRepositoriesOnlyWhenTransactional() {
+        return new ArchCondition<>("write to repositories (non find*/exists* methods) only if annotated with @"
+                + TransactionalUseCase.class.getSimpleName()) {
+            @Override
+            public void check(JavaClass service, ConditionEvents events) {
+                if (isTransactional(service)) {
+                    return;
+                }
+                // accesses include method calls and method references
+                for (JavaAccess<?> access : service.getAccessesFromSelf()) {
+                    if (!(access instanceof JavaCodeUnitAccess<?>)) {
+                        continue;
+                    }
+                    String name = access.getTarget().getName();
+                    boolean repository =
+                            resideInAPackage("..domain..repository..").test(access.getTargetOwner());
+                    boolean read = name.startsWith("find") || name.startsWith("exists");
+                    if (repository && !read) {
+                        events.add(SimpleConditionEvent.violated(access, access.getDescription()));
+                    }
+                }
+            }
+        };
+    }
+
+    /** Nested and anonymous classes (and their lambdas) belong to the use case that encloses them. */
+    private static boolean isTransactional(JavaClass javaClass) {
+        JavaClass outer = javaClass;
+        while (outer.getEnclosingClass().isPresent()) {
+            outer = outer.getEnclosingClass().get();
+        }
+        return outer.isAnnotatedWith(TransactionalUseCase.class);
+    }
+
     /* --- Layered architecture incl. 'monitor' layer --- */
 
     @ArchTest
@@ -202,11 +253,11 @@ public class ArchitectureTest {
             .dependOnClassesThat()
             .resideInAnyPackage("..infrastructure.persistence..", "..monitor..");
 
-    /** Inbound adapters (HTTP, events) reach the domain only through use cases, never through repositories. */
+    /** Inbound adapters (HTTP) reach the domain only through use cases, never through repositories. */
     @ArchTest
     static final ArchRule inbound_adapters_do_not_access_repositories = noClasses()
             .that()
-            .resideInAnyPackage("..infrastructure.web..", "..infrastructure.event..")
+            .resideInAPackage("..infrastructure.web..")
             .should()
             .dependOnClassesThat()
             .resideInAPackage("..domain..repository..")

@@ -1,6 +1,5 @@
 package net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.adapter;
 
-import io.r2dbc.spi.R2dbcException;
 import net.rsworld.example.dddonion.domain.common.ConcurrentAggregateUpdateException;
 import net.rsworld.example.dddonion.domain.customer.model.Customer;
 import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
@@ -25,7 +24,6 @@ import reactor.core.publisher.Mono;
 public class CustomerRepositoryAdapter implements CustomerRepository {
 
     private static final String EMAIL_UNIQUE_KEY = "uq_customers_email";
-    private static final int SNAPSHOT_CONFLICT_ERROR_CODE = 1020; // MariaDB ER_CHECKREAD
 
     private final CustomerR2dbcRepository repo;
 
@@ -50,7 +48,7 @@ public class CustomerRepositoryAdapter implements CustomerRepository {
                 })
                 .map(CustomerMapper::toDomain)
                 .onErrorMap(
-                        e -> e instanceof OptimisticLockingFailureException || isSnapshotConflict(e),
+                        e -> e instanceof OptimisticLockingFailureException || SnapshotConflicts.isSnapshotConflict(e),
                         e -> new ConcurrentAggregateUpdateException(
                                 "Customer", customer.id().value()))
                 .onErrorMap(
@@ -61,20 +59,6 @@ public class CustomerRepositoryAdapter implements CustomerRepository {
     @Override
     public Mono<Customer> findById(CustomerId id) {
         return repo.findById(id.value()).map(CustomerMapper::toDomain);
-    }
-
-    /**
-     * Inside a transaction MariaDB (snapshot isolation) rejects an UPDATE on a row that another transaction changed
-     * since this one read it with error 1020 ("Record has changed since last read") instead of matching zero rows. That
-     * is the same optimistic-lock conflict.
-     */
-    private static boolean isSnapshotConflict(Throwable error) {
-        for (Throwable t = error; t != null; t = t.getCause()) {
-            if (t instanceof R2dbcException r2dbc && r2dbc.getErrorCode() == SNAPSHOT_CONFLICT_ERROR_CODE) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Only the e-mail unique key counts as an e-mail conflict; other duplicates (e.g. primary key) pass through. */
