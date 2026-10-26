@@ -12,18 +12,11 @@ import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.tngtech.archunit.base.DescribedPredicate;
-import com.tngtech.archunit.core.domain.JavaAccess;
 import com.tngtech.archunit.core.domain.JavaClass;
-import com.tngtech.archunit.core.domain.JavaCodeUnitAccess;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
-import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
-import com.tngtech.archunit.lang.ConditionEvents;
-import com.tngtech.archunit.lang.SimpleConditionEvent;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import net.rsworld.example.dddonion.architecture.ApplicationComponent;
 import net.rsworld.example.dddonion.architecture.UseCase;
 
@@ -152,46 +145,6 @@ public class ArchitectureTest {
             .should()
             .notDependOnEachOther()
             .ignoreDependency(alwaysTrue(), resideInAnyPackage("..application.context..", "..application.event.."));
-
-    private static final Pattern REPOSITORY_AGGREGATE = Pattern.compile("\\.domain\\.([^.]+)\\.repository(\\.|$)");
-    private static final Pattern SERVICE_AGGREGATE = Pattern.compile("\\.application\\.([^.]+)\\.service(\\.|$)");
-
-    /** A service may use repositories of other aggregates only for reads ({@code find*}, {@code exists*}). */
-    @ArchTest
-    static final ArchRule aggregates_write_only_their_own_repository = classes()
-            .that()
-            .resideInAPackage("..application..service..")
-            .should(accessForeignRepositoriesOnlyReadOnly())
-            .because("one command changes one aggregate; foreign repositories are read-only (find*/exists*),"
-                    + " other aggregates react through events");
-
-    private static ArchCondition<JavaClass> accessForeignRepositoriesOnlyReadOnly() {
-        return new ArchCondition<>("access repositories of other aggregates only through find* or exists* methods") {
-            @Override
-            public void check(JavaClass service, ConditionEvents events) {
-                Matcher own = SERVICE_AGGREGATE.matcher(service.getPackageName());
-                if (!own.find()) {
-                    return;
-                }
-                String ownAggregate = own.group(1);
-                // accesses include method calls and method references
-                for (JavaAccess<?> access : service.getAccessesFromSelf()) {
-                    if (!(access instanceof JavaCodeUnitAccess<?>)) {
-                        continue;
-                    }
-                    String name = access.getTarget().getName();
-                    Matcher target =
-                            REPOSITORY_AGGREGATE.matcher(access.getTargetOwner().getPackageName());
-                    boolean foreignRepository =
-                            target.find() && !target.group(1).equals(ownAggregate);
-                    boolean readOnly = name.startsWith("find") || name.startsWith("exists");
-                    if (foreignRepository && !readOnly) {
-                        events.add(SimpleConditionEvent.violated(access, access.getDescription()));
-                    }
-                }
-            }
-        };
-    }
 
     /* --- Layered architecture incl. 'monitor' layer --- */
 

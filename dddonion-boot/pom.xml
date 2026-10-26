@@ -55,11 +55,6 @@
     </dependency>
     <dependency>
       <groupId>net.rsworld.example.dddonion</groupId>
-      <artifactId>dddonion-adapters-events</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>net.rsworld.example.dddonion</groupId>
       <artifactId>dddonion-monitor</artifactId>
       <version>${project.version}</version>
     </dependency>

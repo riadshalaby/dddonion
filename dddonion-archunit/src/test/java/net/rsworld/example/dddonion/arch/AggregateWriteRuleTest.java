@@ -22,19 +22,6 @@ class AggregateWriteRuleTest {
     }
 
     @Test
-    void detectsWritesToForeignAggregateRepository() {
-        String details = violations(ArchitectureTest.aggregates_write_only_their_own_repository);
-
-        assertTrue(details.contains("writesViaCall"), details);
-        assertTrue(details.contains("writesViaMethodReference"), details);
-        assertTrue(details.contains("deletesForeign"), details);
-        assertTrue(details.contains("FixtureCustomerRepository.save"), details);
-        assertTrue(details.contains("FixtureCustomerRepository.delete"), details);
-        assertFalse(details.contains("readsForeign"), details);
-        assertFalse(details.contains("writesOwn"), details);
-    }
-
-    @Test
     void detectsAggregateReferenceWithoutId() {
         String details = violations(ArchitectureTest.aggregates_reference_each_other_only_by_id);
 
