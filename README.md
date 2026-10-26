@@ -104,8 +104,8 @@ Zielbild:
 3. `PlaceOrderService` lädt den `Customer` über `CustomerRepository` und ruft `reserveCredit(total)`. Übersteigt der offene Betrag das Limit, bricht der Use Case ab.
 4. `PlaceOrderService` erstellt ein `Order`-Aggregate und führt `order.place()` aus.
 5. Customer und Order werden in einer Transaktion gespeichert, zuerst der Customer (`CustomerRepository`), dann die Order (`OrderRepository`, jeweils R2DBC-Adapter). Bei einem Versionskonflikt wiederholt die Pipeline den ganzen Use Case (siehe "Transaktionen").
-6. Entstandene Domain Events werden nach erfolgreichem Persistieren über den Application-Port `DomainEventPublisherPort` publiziert.
-7. `DomainEventLoggingListener` verarbeitet diese Events asynchron.
+6. Entstandene Domain Events übergibt der Service an den Application-Port `DomainEventPublisherPort`. Sie werden nur gepuffert und erst nach dem Commit der Transaktion tatsächlich publiziert; bei einem Fehler oder Rollback wird nichts publiziert.
+7. `DomainEventLoggingListener` verarbeitet die publizierten Events asynchron.
 
 ## Use-Case-Audit (Logs & Metriken)
 Jeder Use Case erhält explizit `UseCaseMetadata` (`actorType`, `channel`, `correlationId`) aus dem Application-Layer; der Domain-Command bleibt frei davon.
@@ -155,7 +155,13 @@ Regeln, die ArchUnit prüft:
 - **Pipeline** (außen nach innen): Observability, Retry, Transaktion, Service. Es gibt eine Observation pro Aufruf, auch bei Wiederholungen.
 - **Retry**: nur bei `ConcurrentAggregateUpdateException`, höchstens 3 Versuche, Backoff ab 10 ms bis 200 ms, Jitter 0,5. Jeder Versuch ruft den Service neu auf, in einer neuen Transaktion. Sind die Versuche erschöpft, kommt die ursprüngliche Exception durch (REST: 409).
 - **Warum zusammen**: Transaktion und Retry gehören zusammen, weil jeder Versuch seine Aggregates frisch laden muss.
-- Umgesetzt in `UseCaseTransaction` (Boot-Modul) mit dem `TransactionalOperator` von Spring Boot.
+- **Domain Events**: `DomainEventPublisherPort` ist im Boot-Modul als `PostCommitEvents.publisher()` verdrahtet. Der Service ruft ihn wie bisher auf, das Event landet aber in einem Puffer im Reactor-Context. Jeder Versuch hat einen eigenen, neuen Puffer. Nach erfolgreichem Commit (mit oder ohne Ergebnis) publiziert `UseCaseTransaction` die Events in Publish-Reihenfolge über den `ApplicationEventPublisher`, erst danach kommt das Ergebnis beim Aufrufer an. Ein Versuch, der mit Fehler endet (Rollback, auch für den Retry), publiziert nichts. Das Publizieren läuft in derselben Reactor-Kette, daher sieht der asynchrone Listener weiter die `correlationId` im MDC.
+- **Nur im `@TransactionalUseCase`**: Außerhalb davon gibt es keinen Puffer, `publish` endet mit `IllegalStateException`.
+- Umgesetzt in `UseCaseTransaction` und `PostCommitEvents` (Boot-Modul) mit dem `TransactionalOperator` von Spring Boot.
+
+## Bekannte Grenzen
+- **Kein Outbox**: Stürzt der Prozess zwischen Commit und Publizieren ab, geht das Event verloren. Zuverlässige Zustellung bräuchte eine Outbox-Tabelle in derselben Transaktion.
+- Events sind nur "at most once": Das Publizieren läuft nach dem Commit und wird bei einem Fehler im Listener nicht wiederholt.
 
 ## Technischer Stand
 - Spring Boot: `4.0.1`
