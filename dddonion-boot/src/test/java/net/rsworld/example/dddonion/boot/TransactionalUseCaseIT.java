@@ -13,6 +13,8 @@ import net.rsworld.example.dddonion.domain.common.Money;
 import net.rsworld.example.dddonion.domain.customer.model.Customer;
 import net.rsworld.example.dddonion.domain.customer.model.CustomerEmail;
 import net.rsworld.example.dddonion.domain.customer.repository.CustomerRepository;
+import net.rsworld.example.dddonion.domain.order.model.Order;
+import net.rsworld.example.dddonion.domain.order.repository.OrderRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,7 +30,8 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 /**
- * Runs a {@link TransactionalUseCase} through the real pipeline against MariaDB: a failing use case leaves no write.
+ * Runs a {@link TransactionalUseCase} through the real pipeline against MariaDB: a failing use case leaves no write,
+ * neither for the customer nor for the order.
  */
 @Testcontainers
 @Import(TransactionalUseCaseIT.TestUseCaseConfig.class)
@@ -57,16 +60,47 @@ class TransactionalUseCaseIT {
         }
     }
 
+    @UseCase(name = "test.save-customer-and-order", kind = UseCase.Kind.COMMAND)
+    public interface SaveCustomerAndOrderUseCase {
+        Mono<Void> handle(Customer customer, Order order, boolean failAfterSave, UseCaseMetadata metadata);
+    }
+
+    /** Writes through both adapters, so a write outside the transaction would survive the rollback. */
+    @TransactionalUseCase
+    static class SaveCustomerAndOrderService implements SaveCustomerAndOrderUseCase {
+        private final CustomerRepository customers;
+        private final OrderRepository orders;
+
+        SaveCustomerAndOrderService(CustomerRepository customers, OrderRepository orders) {
+            this.customers = customers;
+            this.orders = orders;
+        }
+
+        @Override
+        public Mono<Void> handle(Customer customer, Order order, boolean failAfterSave, UseCaseMetadata metadata) {
+            return customers
+                    .save(customer)
+                    .then(Mono.defer(() -> orders.save(order)))
+                    .then(Mono.defer(() ->
+                            failAfterSave ? Mono.error(new IllegalStateException("fail after save")) : Mono.empty()));
+        }
+    }
+
     @TestConfiguration
     static class TestUseCaseConfig {
         @Bean
         SaveCustomerService saveCustomerService(CustomerRepository customers) {
             return new SaveCustomerService(customers);
         }
+
+        @Bean
+        SaveCustomerAndOrderService saveCustomerAndOrderService(CustomerRepository customers, OrderRepository orders) {
+            return new SaveCustomerAndOrderService(customers, orders);
+        }
     }
 
     @Container
-    static MariaDBContainer maria = new MariaDBContainer("mariadb:11")
+    static MariaDBContainer maria = new MariaDBContainer("mariadb:11.8")
             .withUsername("test")
             .withPassword("test")
             .withDatabaseName("test");
@@ -94,7 +128,13 @@ class TransactionalUseCaseIT {
     SaveCustomerUseCase useCase;
 
     @Autowired
+    SaveCustomerAndOrderUseCase customerAndOrderUseCase;
+
+    @Autowired
     CustomerRepository customers;
+
+    @Autowired
+    OrderRepository orders;
 
     private static final UseCaseMetadata METADATA = new UseCaseMetadata(ActorType.UNKNOWN, "test", "it-tx");
 
@@ -123,5 +163,32 @@ class TransactionalUseCaseIT {
         StepVerifier.create(customers.findById(customer.id()))
                 .assertNext(found -> assertThat(found.id()).isEqualTo(customer.id()))
                 .verifyComplete();
+    }
+
+    @Test
+    void rollsBackCustomerAndOrderWhenUseCaseFails() {
+        Customer customer = newCustomer();
+        Order order = new Order(customer.id(), new Money(new BigDecimal("10.00")));
+
+        StepVerifier.create(customerAndOrderUseCase.handle(customer, order, true, METADATA))
+                .expectError(IllegalStateException.class)
+                .verify();
+
+        StepVerifier.create(customers.findById(customer.id())).verifyComplete();
+        StepVerifier.create(orders.findById(order.id())).verifyComplete();
+    }
+
+    @Test
+    void commitsCustomerAndOrderWhenUseCaseSucceeds() {
+        Customer customer = newCustomer();
+        Order order = new Order(customer.id(), new Money(new BigDecimal("10.00")));
+
+        StepVerifier.create(customerAndOrderUseCase.handle(customer, order, false, METADATA))
+                .verifyComplete();
+
+        StepVerifier.create(customers.findById(customer.id()))
+                .expectNextCount(1)
+                .verifyComplete();
+        StepVerifier.create(orders.findById(order.id())).expectNextCount(1).verifyComplete();
     }
 }
