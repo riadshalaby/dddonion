@@ -12,6 +12,7 @@ import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import net.rsworld.example.dddonion.application.context.UseCaseContextKeys;
 import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
@@ -72,6 +73,14 @@ public final class UseCaseObservability {
      * cannot silently escape the audit.
      */
     public static <T> T wrap(Class<T> useCase, T target, ObservationRegistry registry) {
+        return wrap(useCase, target, registry, UnaryOperator.identity());
+    }
+
+    /**
+     * As {@link #wrap(Class, Object, ObservationRegistry)}, but {@code inner} wraps each (re-)invocation of the target
+     * inside the observation, e.g. with a transaction and retry. The observation still covers the call once.
+     */
+    public static <T> T wrap(Class<T> useCase, T target, ObservationRegistry registry, UnaryOperator<Mono<?>> inner) {
         if (!useCase.isInterface()) {
             throw new IllegalArgumentException(useCase.getName() + " must be an interface");
         }
@@ -110,7 +119,8 @@ public final class UseCaseObservability {
             }
             UseCaseMetadata metadata = metadataOf(args);
             boolean voidResult = isVoidMono(method);
-            return observe(name, kind, metadata, registry, voidResult, () -> (Mono<?>) invoke(target, method, args));
+            return observe(
+                    name, kind, metadata, registry, voidResult, inner, () -> (Mono<?>) invoke(target, method, args));
         };
         return useCase.cast(
                 Proxy.newProxyInstance(useCase.getClassLoader(), new Class<?>[] {useCase, Observed.class}, handler));
@@ -122,6 +132,7 @@ public final class UseCaseObservability {
             UseCaseMetadata metadata,
             ObservationRegistry registry,
             boolean voidResult,
+            UnaryOperator<Mono<?>> inner,
             InvocationSupplier invocation) {
         return Mono.deferContextual(reactorContext -> {
                     Observation observation = Observation.createNotStarted(OBSERVATION_NAME, registry)
@@ -135,7 +146,7 @@ public final class UseCaseObservability {
                             .highCardinalityKeyValue(KEY_CORRELATION_ID, metadata.correlationId())
                             .start();
                     AtomicBoolean emitted = new AtomicBoolean();
-                    return Mono.defer(invocation::get)
+                    return inner.apply(Mono.defer(invocation::get))
                             .doOnNext(value -> emitted.set(true))
                             .doOnError(observation::error)
                             .doFinally(signal -> {

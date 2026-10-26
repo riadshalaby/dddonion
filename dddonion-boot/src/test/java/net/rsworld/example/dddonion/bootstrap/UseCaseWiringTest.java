@@ -10,23 +10,25 @@ import net.rsworld.example.dddonion.application.customer.usecase.RegisterCustome
 import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.application.order.usecase.PlaceOrderUseCase;
 import net.rsworld.example.dddonion.architecture.UseCase;
-import net.rsworld.example.dddonion.bootstrap.observability.ObservabilityConfig;
 import net.rsworld.example.dddonion.bootstrap.observability.UseCaseObservability;
+import net.rsworld.example.dddonion.bootstrap.usecase.UseCasePipelineConfig;
 import net.rsworld.example.dddonion.domain.customer.repository.CustomerRepository;
 import net.rsworld.example.dddonion.domain.order.repository.OrderRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import org.springframework.util.ClassUtils;
 
 /** Guards against a use case bean escaping the observability decorator (and thus the audit). */
 class UseCaseWiringTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
-            .withUserConfiguration(ApplicationWiringConfig.class, ObservabilityConfig.class)
+            .withUserConfiguration(ApplicationWiringConfig.class, UseCasePipelineConfig.class)
             .withBean(ObservationRegistry.class, ObservationRegistry::create)
             .withBean(OrderRepository.class, () -> mock(OrderRepository.class))
             .withBean(CustomerRepository.class, () -> mock(CustomerRepository.class))
+            .withBean(TransactionalOperator.class, () -> mock(TransactionalOperator.class))
             .withBean(DomainEventPublisherPort.class, () -> mock(DomainEventPublisherPort.class));
 
     @Test

@@ -1,21 +1,30 @@
-package net.rsworld.example.dddonion.bootstrap.observability;
+package net.rsworld.example.dddonion.bootstrap.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import io.micrometer.observation.ObservationRegistry;
 import java.util.Map;
+import net.rsworld.example.dddonion.application.context.ActorType;
 import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
+import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.architecture.UseCase;
+import net.rsworld.example.dddonion.bootstrap.observability.UseCaseObservability;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.core.Ordered;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 
-class UseCaseObservabilityPostProcessorTest {
+class UseCasePipelinePostProcessorTest {
 
     @UseCase(name = "thing.place", kind = UseCase.Kind.COMMAND)
-    interface PlaceThingUseCase {
+    public interface PlaceThingUseCase {
         Mono<String> handle(String cmd, UseCaseMetadata metadata);
     }
 
@@ -57,9 +66,29 @@ class UseCaseObservabilityPostProcessorTest {
         }
     }
 
-    private final UseCaseObservabilityPostProcessor processor = new UseCaseObservabilityPostProcessor(
+    @TransactionalUseCase
+    static class TransactionalPlaceThing extends PlaceThing {}
+
+    @TransactionalUseCase
+    static class TransactionalGetThing implements GetThingUseCase {
+        @Override
+        public Mono<String> find(String id, UseCaseMetadata metadata) {
+            return Mono.just(id);
+        }
+    }
+
+    @TransactionalUseCase
+    static class TransactionalPlain {}
+
+    private static final UseCaseMetadata METADATA = new UseCaseMetadata(ActorType.UNKNOWN, "rest", "corr-1");
+
+    private final TransactionalOperator tx = mock(TransactionalOperator.class);
+
+    private final UseCasePipelinePostProcessor processor = new UseCasePipelinePostProcessor(
             new StaticListableBeanFactory(Map.of("observationRegistry", ObservationRegistry.NOOP))
-                    .getBeanProvider(ObservationRegistry.class));
+                    .getBeanProvider(ObservationRegistry.class),
+            new StaticListableBeanFactory(Map.of("transactionalOperator", tx))
+                    .getBeanProvider(TransactionalOperator.class));
 
     @Test
     void wrapsBeanImplementingUseCaseInterface() {
@@ -126,5 +155,44 @@ class UseCaseObservabilityPostProcessorTest {
     @Test
     void runsLast() {
         assertThat(processor.getOrder()).isEqualTo(Ordered.LOWEST_PRECEDENCE);
+    }
+
+    @Test
+    void runsTransactionalUseCaseInTransaction() {
+        when(tx.transactional(any(Mono.class))).thenAnswer(inv -> inv.getArgument(0));
+        PlaceThingUseCase wrapped = (PlaceThingUseCase)
+                processor.postProcessAfterInitialization(new TransactionalPlaceThing(), "transactionalPlaceThing");
+
+        assertThat(wrapped.handle("x", METADATA).block()).isEqualTo("x");
+
+        verify(tx).transactional(any(Mono.class));
+    }
+
+    @Test
+    void runsOtherUseCasesWithoutTransaction() {
+        PlaceThingUseCase wrapped =
+                (PlaceThingUseCase) processor.postProcessAfterInitialization(new PlaceThing(), "placeThing");
+
+        assertThat(wrapped.handle("x", METADATA).block()).isEqualTo("x");
+
+        verifyNoInteractions(tx);
+    }
+
+    @Test
+    void rejectsTransactionalQueryUseCase() {
+        assertThatThrownBy(() ->
+                        processor.postProcessAfterInitialization(new TransactionalGetThing(), "transactionalGetThing"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(TransactionalGetThing.class.getName())
+                .hasMessageContaining("COMMAND");
+    }
+
+    @Test
+    void rejectsTransactionalClassWithoutUseCase() {
+        assertThatThrownBy(
+                        () -> processor.postProcessAfterInitialization(new TransactionalPlain(), "transactionalPlain"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(TransactionalPlain.class.getName())
+                .hasMessageContaining("@UseCase");
     }
 }
