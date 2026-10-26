@@ -52,7 +52,7 @@ dddonion/
 - Architecture: Spring-freie Annotationen, die Use Cases beschreiben und für das Wiring markieren; einzige erlaubte Zusatzabhängigkeit der Application-Schicht.
 - Application: orchestriert Use Cases, ruft Domain und Ports auf.
 - Adapter (Infrastruktur): implementieren Ports und binden Frameworks/IO (HTTP, DB).
-- Boot: Composition Root: Adapter-Beans in `BeansConfig`; Application Services per Component-Scan auf `@ApplicationComponent`; jeder Use Case wird automatisch beobachtet; `AsyncConfig` aktiviert `@EnableAsync` und stellt den `applicationTaskExecutor` (virtuelle Threads, MDC-Weitergabe) für alle asynchronen Listener.
+- Boot: Composition Root: Adapter-Beans in `BeansConfig`; Application Services per Component-Scan auf `@ApplicationComponent`; jeder Use Case wird automatisch beobachtet, `@TransactionalUseCase`-Services zusätzlich mit Retry und Transaktion (`UseCaseTransaction`); `AsyncConfig` aktiviert `@EnableAsync` und stellt den `applicationTaskExecutor` (virtuelle Threads, MDC-Weitergabe) für alle asynchronen Listener.
 - Monitor: asynchrone Beobachtung von Domain Events via Spring Events; enthält nur den Listener, der Executor kommt aus Boot.
 
 ## Mehrere Aggregates
@@ -62,6 +62,7 @@ dddonion/
 - **Reaktion über Events:** Nur der Monitor reagiert auf Domain Events (`DomainEventLoggingListener`); fachliche Folgen laufen nicht über Events.
 - **Geteilter Code:** Retry und Transaktion liegen in der Pipeline statt in einem geteilten Baustein; für anderen geteilten Code gibt es weder Basisklasse noch Use-Case-zu-Use-Case-Aufruf, damit Use Cases unabhängig bleiben. ArchUnit: `use_cases_do_not_call_use_cases` und `aggregate_use_cases_are_independent`.
 - **Schreiben nur transaktional:** Jeder Zugriff aus `application` auf einen Repository-Port, der nicht mit `find` oder `exists` beginnt (auch per Methodenreferenz), setzt `@TransactionalUseCase` an der Service-Klasse voraus. ArchUnit: `repository_writes_only_in_transactional_use_cases`.
+- **Events nur transaktional:** Jeder Aufruf von `DomainEventPublisherPort.publish` aus `application` (auch per Methodenreferenz) setzt ebenfalls `@TransactionalUseCase` voraus, sonst scheitert er schon im Build statt erst zur Laufzeit. ArchUnit: `domain_events_published_only_in_transactional_use_cases`.
 - **Fachlogik am Aggregate:** Die Kreditprüfung samt Reservierung ist `Customer.reserveCredit` und kein Domain Service. Ein Domain Service ist erst gerechtfertigt, wenn eine Regel den Zustand mehrerer Aggregates braucht.
 
 Zielbild:
@@ -79,6 +80,7 @@ Zielbild:
     - Erfolg: `201 Created`, Header `Location: /orders/{orderId}`, Body `{ "orderId": "..." }`
     - Ungültige Eingabe (z. B. keine gültige `customerId`): `400`, `application/problem+json`
     - Unbekannter Customer oder Kreditlimit überschritten: `422`, `application/problem+json`
+    - Gleichzeitige Änderung, Wiederholungsversuche erschöpft: `409`, `application/problem+json`
   - `GET /orders/{orderId}`
     - Erfolg: `200 OK`, Body `{ "orderId", "customerId", "total", "status" }`
     - Unbekannte Order: `404`, `application/problem+json`
@@ -101,7 +103,7 @@ Zielbild:
 
 ## Datenfluss: Order anlegen
 1. HTTP `POST /orders` mit JSON-Body `{ "customerId": ..., "total": ... }` trifft auf `OrderController`.
-2. Controller baut aus den Headern `UseCaseMetadata` und ruft `PlaceOrderUseCase`. Das Bean ist ein Proxy, den `UseCaseObservabilityPostProcessor` um `PlaceOrderService` gelegt hat.
+2. Controller baut aus den Headern `UseCaseMetadata` und ruft `PlaceOrderUseCase`. Das Bean ist ein Proxy, den `UseCasePipelinePostProcessor` um `PlaceOrderService` gelegt hat.
 3. `PlaceOrderService` lädt den `Customer` über `CustomerRepository` und ruft `reserveCredit(total)`. Übersteigt der offene Betrag das Limit, bricht der Use Case ab.
 4. `PlaceOrderService` erstellt ein `Order`-Aggregate und führt `order.place()` aus.
 5. Customer und Order werden in einer Transaktion gespeichert, zuerst der Customer (`CustomerRepository`), dann die Order (`OrderRepository`, jeweils R2DBC-Adapter). Bei einem Versionskonflikt wiederholt die Pipeline den ganzen Use Case (siehe "Transaktionen").
@@ -133,7 +135,8 @@ curl -s http://localhost:8080/actuator/prometheus | grep usecase_execution
 ### Use Case hinzufügen
 1. Interface in `application.<aggregate>.usecase` mit `@UseCase`.
 2. Paketinterne Implementierung in `application.<aggregate>.service` mit `@ApplicationComponent`.
-3. Kein Wiring nötig, Audit und Metrik greifen automatisch.
+3. COMMANDs, die schreiben oder Events publizieren: zusätzlich `@TransactionalUseCase` an die Service-Klasse (siehe "Transaktionen"). Reine Queries brauchen sie nicht.
+4. Kein Wiring nötig, Audit, Metrik, Retry und Transaktion greifen automatisch.
 
 ```java
 @UseCase(name = "order.cancel", kind = UseCase.Kind.COMMAND)
@@ -141,12 +144,13 @@ public interface CancelOrderUseCase {
     Mono<Void> handle(CancelOrderCommand cmd, UseCaseMetadata metadata);
 }
 
+@TransactionalUseCase
 @ApplicationComponent
 class CancelOrderService implements CancelOrderUseCase { /* ... */ }
 ```
 
 Regeln, die ArchUnit prüft:
-- Use Cases rufen keine Use Cases auf. Geteilter Code kommt als paketinterne `@ApplicationComponent` ins selbe `service`-Paket.
+- Use Cases rufen keine Use Cases auf. Geteilter Code kommt als paketinterne `@ApplicationComponent` ins selbe `service`-Paket. Geteilte Bausteine lesen und rechnen; gespeichert wird nur im Service mit `@TransactionalUseCase`.
 - Services sind nicht `public`.
 - Klassen, die ein `@UseCase`-Interface implementieren, tragen `@ApplicationComponent`.
 
@@ -157,7 +161,7 @@ Regeln, die ArchUnit prüft:
 - **Retry**: nur bei `ConcurrentAggregateUpdateException`, höchstens 3 Versuche, Backoff ab 10 ms bis 200 ms, Jitter 0,5. Jeder Versuch ruft den Service neu auf, in einer neuen Transaktion. Sind die Versuche erschöpft, kommt die ursprüngliche Exception durch (REST: 409).
 - **Warum zusammen**: Transaktion und Retry gehören zusammen, weil jeder Versuch seine Aggregates frisch laden muss.
 - **Domain Events**: `DomainEventPublisherPort` ist im Boot-Modul als `PostCommitEvents.publisher()` verdrahtet. Der Service ruft ihn wie bisher auf, das Event landet aber in einem Puffer im Reactor-Context. Jeder Versuch hat einen eigenen, neuen Puffer. Nach erfolgreichem Commit (mit oder ohne Ergebnis) publiziert `UseCaseTransaction` die Events in Publish-Reihenfolge über den `ApplicationEventPublisher`, erst danach kommt das Ergebnis beim Aufrufer an. Ein Versuch, der mit Fehler endet (Rollback, auch für den Retry), publiziert nichts. Das Publizieren läuft in derselben Reactor-Kette, daher sieht der asynchrone Listener weiter die `correlationId` im MDC.
-- **Nur im `@TransactionalUseCase`**: Außerhalb davon gibt es keinen Puffer, `publish` endet mit `IllegalStateException`.
+- **Nur im `@TransactionalUseCase`**: Außerhalb davon gibt es keinen Puffer, `publish` endet mit `IllegalStateException`; `domain_events_published_only_in_transactional_use_cases` fängt das schon im Build ab.
 - Umgesetzt in `UseCaseTransaction` und `PostCommitEvents` (Boot-Modul) mit dem `TransactionalOperator` von Spring Boot.
 
 ## Bekannte Grenzen

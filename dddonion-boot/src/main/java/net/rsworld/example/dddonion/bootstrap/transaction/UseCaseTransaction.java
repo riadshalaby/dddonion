@@ -66,6 +66,7 @@ public final class UseCaseTransaction implements UnaryOperator<Mono<?>> {
     /** One attempt with its own event buffer; completes after the commit, with an empty result if there is none. */
     private Mono<Committed> attempt(Mono<?> invocation) {
         PostCommitEvents.Buffer buffer = new PostCommitEvents.Buffer();
+        // transactional(Mono) is execute(..).singleOrEmpty(): onNext is held back until the commit has completed
         return tx.transactional(invocation)
                 .<Object>map(Object.class::cast)
                 .map(result -> new Committed(buffer, Optional.of(result)))
