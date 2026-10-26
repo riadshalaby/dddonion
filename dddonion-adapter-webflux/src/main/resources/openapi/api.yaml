@@ -67,6 +67,12 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetail'
+        '409':
+          description: The customer was modified concurrently and retries were exhausted; the request may be repeated.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
   /orders/{orderId}:
     get:
       tags:
