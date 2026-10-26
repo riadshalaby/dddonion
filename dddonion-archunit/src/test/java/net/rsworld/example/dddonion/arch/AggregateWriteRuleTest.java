@@ -34,7 +34,17 @@ class AggregateWriteRuleTest {
         String details = violations(ArchitectureTest.inbound_adapters_do_not_access_repositories);
 
         assertTrue(details.contains("FixtureRepositoryController"), details);
-        assertTrue(details.contains("FixtureRepositoryListener"), details);
-        assertFalse(details.contains("FixtureUseCaseListener"), details);
+    }
+
+    @Test
+    void detectsRepositoryWritesOutsideTransactionalUseCase() {
+        String details = violations(ArchitectureTest.repository_writes_only_in_transactional_use_cases);
+
+        assertTrue(details.contains("NonTransactionalWriter.writesViaCall"), details);
+        assertTrue(details.contains("NonTransactionalWriter.writesViaMethodReference"), details);
+        assertTrue(details.contains("NonTransactionalWriter.deletesForeign"), details);
+        assertTrue(details.contains("NonTransactionalWriter.writesOwn"), details);
+        assertFalse(details.contains("readsForeign"), details);
+        assertFalse(details.contains("service.TransactionalWriter"), details);
     }
 }

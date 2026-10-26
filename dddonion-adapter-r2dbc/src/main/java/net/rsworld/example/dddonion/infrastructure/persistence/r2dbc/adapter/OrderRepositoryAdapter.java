@@ -21,7 +21,8 @@ import reactor.core.publisher.Mono;
  * ({@code place()}, {@code pay()}), possibly several times between load and save. It is therefore stored as is, not
  * managed by Spring Data's {@code @Version}. An update only succeeds if the row still carries
  * {@link Order#loadedVersion()}; otherwise another writer changed the order in the meantime and the save fails with a
- * {@link ConcurrentAggregateUpdateException}. The version is never adopted from the database row.
+ * {@link ConcurrentAggregateUpdateException}, which also covers MariaDB's snapshot conflict (error 1020, see
+ * {@link SnapshotConflicts}). The version is never adopted from the database row.
  */
 public class OrderRepositoryAdapter implements OrderRepository {
 
@@ -41,7 +42,10 @@ public class OrderRepositoryAdapter implements OrderRepository {
             OrderRow row = OrderMapper.toRow(order);
             return repo.existsById(row.getId())
                     .flatMap(exists -> exists ? update(order, row) : template.insert(row))
-                    .map(OrderMapper::toDomain);
+                    .map(OrderMapper::toDomain)
+                    .onErrorMap(
+                            SnapshotConflicts::isSnapshotConflict,
+                            e -> new ConcurrentAggregateUpdateException("Order", row.getId()));
         });
     }
 

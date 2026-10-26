@@ -29,7 +29,7 @@ dddonion/
 |  |- application/event/DomainEventPublisherPort
 |  |- application/context/UseCaseMetadata, ActorType, UseCaseContextKeys
 |  |- application/customer/usecase/RegisterCustomerUseCase, GetCustomerUseCase, ChangeCreditLimitUseCase
-|  |- application/customer/service/RegisterCustomerService, GetCustomerService, ChangeCreditLimitService, CustomerUpdater
+|  |- application/customer/service/RegisterCustomerService, GetCustomerService, ChangeCreditLimitService
 |  |- application/order/usecase/PlaceOrderUseCase, GetOrderUseCase
 |  \- application/order/service/PlaceOrderService, GetOrderService
 |- dddonion-adapter-webflux
@@ -44,7 +44,7 @@ dddonion/
 |  |- bootstrap/usecase/UseCasePipelinePostProcessor, UseCasePipelineConfig
 |  \- bootstrap/transaction/UseCaseTransaction
 \- dddonion-archunit
-   \- Architekturregeln (Layer, Abhängigkeiten, Adapter-Isolation, Use-Case-Konventionen, Aggregate-Grenzen)
+   \- Architekturregeln (Layer, Abhängigkeiten, Adapter-Isolation, Use-Case-Konventionen, Aggregate-Grenzen, transaktionale Writes)
 ```
 
 ## Architekturzuordnung
@@ -58,9 +58,10 @@ dddonion/
 ## Mehrere Aggregates
 - **Referenz nur per ID:** `Order` hält `CustomerId` statt `Customer`, so bleiben Aggregates lose gekoppelt. ArchUnit: `aggregates_reference_each_other_only_by_id`.
 - **Mehrere Aggregates pro Transaktion:** `PlaceOrder` ändert Customer und Order atomar: Der Kredit wird reserviert und die Order angelegt, beides in einer Transaktion (siehe "Transaktionen").
-- **Eingehende Adapter nur über Use Cases:** Klassen in `infrastructure.web` und `infrastructure.event` greifen nicht auf Repositories zu. ArchUnit: `inbound_adapters_do_not_access_repositories`.
+- **Eingehende Adapter nur über Use Cases:** Klassen in `infrastructure.web` greifen nicht auf Repositories zu. ArchUnit: `inbound_adapters_do_not_access_repositories`.
 - **Reaktion über Events:** Nur der Monitor reagiert auf Domain Events (`DomainEventLoggingListener`); fachliche Folgen laufen nicht über Events.
-- **Geteilter Code:** ein paketinterner `CustomerUpdater` statt Basisklasse oder Use-Case-zu-Use-Case-Aufruf, damit Use Cases unabhängig bleiben. ArchUnit: `use_cases_do_not_call_use_cases` und `aggregate_use_cases_are_independent`.
+- **Geteilter Code:** Retry und Transaktion liegen in der Pipeline statt in einem geteilten Baustein; für anderen geteilten Code gibt es weder Basisklasse noch Use-Case-zu-Use-Case-Aufruf, damit Use Cases unabhängig bleiben. ArchUnit: `use_cases_do_not_call_use_cases` und `aggregate_use_cases_are_independent`.
+- **Schreiben nur transaktional:** Jeder Zugriff aus `application` auf einen Repository-Port, der nicht mit `find` oder `exists` beginnt (auch per Methodenreferenz), setzt `@TransactionalUseCase` an der Service-Klasse voraus. ArchUnit: `repository_writes_only_in_transactional_use_cases`.
 - **Fachlogik am Aggregate:** Die Kreditprüfung samt Reservierung ist `Customer.reserveCredit` und kein Domain Service. Ein Domain Service ist erst gerechtfertigt, wenn eine Regel den Zustand mehrerer Aggregates braucht.
 
 Zielbild:
@@ -229,8 +230,8 @@ open http://localhost:8080/swagger-ui.html
 - Die Tabelle `customers` hat eine eindeutige E-Mail (`uq_customers_email`) und `CHECK`-Constraints (Kreditlimit und offener Betrag nicht negativ). Eine bereits registrierte E-Mail ergibt `EmailAlreadyRegisteredException`.
 - Beide Adapter nutzen Optimistic Locking mit der Version aus dem Domain-Objekt, nie aus der DB. Ein veralteter Stand führt zu `ConcurrentAggregateUpdateException`.
   - Customer: reines Concurrency-Token, verwaltet über Spring Datas `@Version`.
-    In einer Transaktion meldet MariaDB (Snapshot-Isolation) einen veralteten Stand als Fehler 1020 ("Record has changed since last read") statt als 0 geänderte Zeilen; der Adapter bildet beides auf `ConcurrentAggregateUpdateException` ab.
   - Order: die Version ist zugleich die Event-Sequenz und steigt mit jedem Übergang (`place()` → 1, `pay()` → 2). Der Adapter speichert sie unverändert und aktualisiert nur, wenn die Zeile noch `loadedVersion()` trägt.
+  - Beide Adapter bilden einen veralteten Stand auf zwei Wegen auf `ConcurrentAggregateUpdateException` ab: keine passende Zeile (0 geänderte Zeilen) oder MariaDB-Fehler 1020 ("Record has changed since last read"). Letzteren meldet MariaDB je nach Version und Einstellung (`innodb_snapshot_isolation`, ab 11.6.2 standardmäßig an) für ein UPDATE auf eine Zeile, die eine andere Transaktion seit dem Lesen geändert hat. Die Erkennung liegt gemeinsam in `SnapshotConflicts`.
 - `created_at`/`updated_at` verwaltet die DB; die Rows markieren sie als `@ReadOnlyProperty`, damit ein Update sie nicht überschreibt.
 - Das Schema wird direkt in den bestehenden Changesets gepflegt, ohne Migrationen. Nach einer Schemaänderung muss die lokale Datenbank neu aufgebaut werden (`docker-compose down -v && docker-compose up -d`). Rückwärtskompatibilität ist für das Beispielprojekt kein Ziel.
 - Es gibt bewusst keinen Fremdschlüssel zwischen `orders` und `customers` (Aggregate-Grenze).

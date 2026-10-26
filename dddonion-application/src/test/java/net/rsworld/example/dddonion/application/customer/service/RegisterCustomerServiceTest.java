@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import net.rsworld.example.dddonion.application.context.ActorType;
 import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
+import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.domain.common.Money;
 import net.rsworld.example.dddonion.domain.customer.command.RegisterCustomerCommand;
 import net.rsworld.example.dddonion.domain.customer.model.Customer;
@@ -45,5 +46,12 @@ class RegisterCustomerServiceTest {
 
         StepVerifier.create(new RegisterCustomerService(customers).handle(CMD, META))
                 .verifyError(EmailAlreadyRegisteredException.class);
+    }
+
+    @Test
+    void isTransactional() {
+        org.assertj.core.api.Assertions.assertThat(
+                        RegisterCustomerService.class.isAnnotationPresent(TransactionalUseCase.class))
+                .isTrue();
     }
 }
