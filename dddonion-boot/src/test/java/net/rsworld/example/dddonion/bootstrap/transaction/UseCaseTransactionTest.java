@@ -200,4 +200,23 @@ class UseCaseTransactionTest {
 
         assertThat(manager.events).containsExactly("begin", "commit", "e1");
     }
+
+    @Test
+    void listenerFailureDoesNotAffectCommittedResultOrLaterEvents() {
+        var failingTransaction = new UseCaseTransaction(TransactionalOperator.create(manager), event -> {
+            String name = ((TestEvent) event).name();
+            if (name.equals("e1")) {
+                throw new IllegalStateException("listener rejected " + name);
+            }
+            manager.events.add(name);
+        });
+        Mono<?> invocation = counting(() -> publish("e1").then(publish("e2")).thenReturn("x"));
+
+        StepVerifier.create(failingTransaction.apply(invocation))
+                .expectNextMatches("x"::equals)
+                .verifyComplete();
+
+        assertThat(manager.events).containsExactly("begin", "commit", "e2");
+        assertThat(calls).hasValue(1);
+    }
 }
