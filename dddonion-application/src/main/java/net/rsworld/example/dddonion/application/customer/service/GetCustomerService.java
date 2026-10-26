@@ -19,7 +19,6 @@ class GetCustomerService implements GetCustomerUseCase {
 
     @Override
     public Mono<Customer> findById(CustomerId id, UseCaseMetadata metadata) {
-        return Mono.fromCompletionStage(() -> customers.findById(id))
-                .flatMap(found -> found.map(Mono::just).orElseGet(Mono::empty));
+        return customers.findById(id);
     }
 }

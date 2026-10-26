@@ -30,15 +30,16 @@ public class Customer {
         this.version = version;
     }
 
-    /** Fails if accepting an order of the given total would push the open amount above the credit limit. */
-    public void ensureCreditFor(Money orderTotal) {
-        if (openAmount.plus(orderTotal).isGreaterThan(creditLimit)) {
+    /**
+     * Reserves credit for an order: fails if the open amount would exceed the credit limit, otherwise adds the total to
+     * the open amount.
+     */
+    public void reserveCredit(Money orderTotal) {
+        Money newOpenAmount = openAmount.plus(orderTotal);
+        if (newOpenAmount.isGreaterThan(creditLimit)) {
             throw new CreditLimitExceededException(id);
         }
-    }
-
-    public void recordOrder(Money amount) {
-        this.openAmount = openAmount.plus(amount);
+        this.openAmount = newOpenAmount;
     }
 
     /** The new limit may be below the open amount; it then merely blocks further orders. */

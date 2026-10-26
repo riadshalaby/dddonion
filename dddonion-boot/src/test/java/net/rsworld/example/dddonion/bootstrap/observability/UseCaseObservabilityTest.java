@@ -9,7 +9,6 @@ import io.micrometer.context.ContextRegistry;
 import io.micrometer.context.ContextSnapshotFactory;
 import io.micrometer.observation.tck.TestObservationRegistry;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
@@ -309,9 +308,8 @@ class UseCaseObservabilityTest {
                 .publishOn(Schedulers.parallel())
                 .doOnNext(c -> onReactorThread.set(MDC.getCopyOfContextMap()))
                 // like PlaceOrderService -> ApplicationEventPublisher -> @Async listener
-                .flatMap(c -> Mono.fromRunnable(() -> CompletableFuture.runAsync(
-                                        () -> onAsyncExecutor.set(MDC.getCopyOfContextMap()), async)
-                                .join())
+                .flatMap(c -> Mono.fromCallable(() -> async.submit(() -> onAsyncExecutor.set(MDC.getCopyOfContextMap()))
+                                .get())
                         .thenReturn(c));
         PlaceThingUseCase observed =
                 UseCaseObservability.wrap(PlaceThingUseCase.class, target, TestObservationRegistry.create());

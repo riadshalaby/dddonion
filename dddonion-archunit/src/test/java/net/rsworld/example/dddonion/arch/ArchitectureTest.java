@@ -22,9 +22,9 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.architecture.ApplicationComponent;
+import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.architecture.UseCase;
 
 /** ArchUnit rules for DDD + Onion + Hex with a relaxed application whitelist. */
@@ -41,21 +41,16 @@ public class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(
-                    "..application..",
-                    "..infrastructure..",
-                    "..bootstrap..",
-                    "..monitor..",
-                    "org.springframework..",
-                    "reactor..");
+                    "..application..", "..infrastructure..", "..bootstrap..", "..monitor..", "org.springframework..");
 
-    /** Domain should only depend on JDK and itself. */
+    /** Domain should only depend on JDK, Reactor (reactive port types) and itself. */
     @ArchTest
     static final ArchRule domain_should_only_depend_on_java_and_domain = classes()
             .that()
             .resideInAPackage("..domain..")
             .should()
             .onlyDependOnClassesThat()
-            .resideInAnyPackage("..domain..", "java..", "javax..");
+            .resideInAnyPackage("..domain..", "java..", "javax..", "reactor..", "org.reactivestreams..");
 
     /* --- Application: relaxed whitelist --- */
 
@@ -158,44 +153,80 @@ public class ArchitectureTest {
             .notDependOnEachOther()
             .ignoreDependency(alwaysTrue(), resideInAnyPackage("..application.context..", "..application.event.."));
 
-    private static final Pattern REPOSITORY_AGGREGATE = Pattern.compile("\\.domain\\.([^.]+)\\.repository(\\.|$)");
-    private static final Pattern SERVICE_AGGREGATE = Pattern.compile("\\.application\\.([^.]+)\\.service(\\.|$)");
-
-    /** A service may use repositories of other aggregates only for reads ({@code find*}, {@code exists*}). */
+    /**
+     * Anything but a read ({@code find*}, {@code exists*}) on a repository port needs the transaction, retry and event
+     * pipeline of {@code @TransactionalUseCase}. Method references count as accesses.
+     */
     @ArchTest
-    static final ArchRule aggregates_write_only_their_own_repository = classes()
+    static final ArchRule repository_writes_only_in_transactional_use_cases = classes()
             .that()
-            .resideInAPackage("..application..service..")
-            .should(accessForeignRepositoriesOnlyReadOnly())
-            .because("one command changes one aggregate; foreign repositories are read-only (find*/exists*),"
-                    + " other aggregates react through events");
+            .resideInAPackage("..application..")
+            .should(writeToRepositoriesOnlyWhenTransactional())
+            .because("writes need the transaction, retry and post-commit event handling of @TransactionalUseCase;"
+                    + " shared building blocks read and compute, only the service with @TransactionalUseCase saves");
 
-    private static ArchCondition<JavaClass> accessForeignRepositoriesOnlyReadOnly() {
-        return new ArchCondition<>("access repositories of other aggregates only through find* or exists* methods") {
+    /**
+     * Events are buffered per transaction attempt and published after the commit; outside {@code @TransactionalUseCase}
+     * there is no buffer and {@code publish} fails at runtime. Method references count as accesses.
+     */
+    @ArchTest
+    static final ArchRule domain_events_published_only_in_transactional_use_cases = classes()
+            .that()
+            .resideInAPackage("..application..")
+            .should(publishEventsOnlyWhenTransactional())
+            .because("events are published after the commit, which only @TransactionalUseCase provides");
+
+    private static ArchCondition<JavaClass> publishEventsOnlyWhenTransactional() {
+        return new ArchCondition<>(
+                "publish domain events only if annotated with @" + TransactionalUseCase.class.getSimpleName()) {
             @Override
             public void check(JavaClass service, ConditionEvents events) {
-                Matcher own = SERVICE_AGGREGATE.matcher(service.getPackageName());
-                if (!own.find()) {
+                if (isTransactional(service)) {
                     return;
                 }
-                String ownAggregate = own.group(1);
+                for (JavaAccess<?> access : service.getAccessesFromSelf()) {
+                    if (access instanceof JavaCodeUnitAccess<?>
+                            && access.getTargetOwner().isEquivalentTo(DomainEventPublisherPort.class)
+                            && access.getTarget().getName().equals("publish")) {
+                        events.add(SimpleConditionEvent.violated(access, access.getDescription()));
+                    }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> writeToRepositoriesOnlyWhenTransactional() {
+        return new ArchCondition<>("write to repositories (non find*/exists* methods) only if annotated with @"
+                + TransactionalUseCase.class.getSimpleName()) {
+            @Override
+            public void check(JavaClass service, ConditionEvents events) {
+                if (isTransactional(service)) {
+                    return;
+                }
                 // accesses include method calls and method references
                 for (JavaAccess<?> access : service.getAccessesFromSelf()) {
                     if (!(access instanceof JavaCodeUnitAccess<?>)) {
                         continue;
                     }
                     String name = access.getTarget().getName();
-                    Matcher target =
-                            REPOSITORY_AGGREGATE.matcher(access.getTargetOwner().getPackageName());
-                    boolean foreignRepository =
-                            target.find() && !target.group(1).equals(ownAggregate);
-                    boolean readOnly = name.startsWith("find") || name.startsWith("exists");
-                    if (foreignRepository && !readOnly) {
+                    boolean repository =
+                            resideInAPackage("..domain..repository..").test(access.getTargetOwner());
+                    boolean read = name.startsWith("find") || name.startsWith("exists");
+                    if (repository && !read) {
                         events.add(SimpleConditionEvent.violated(access, access.getDescription()));
                     }
                 }
             }
         };
+    }
+
+    /** Nested and anonymous classes (and their lambdas) belong to the use case that encloses them. */
+    private static boolean isTransactional(JavaClass javaClass) {
+        JavaClass outer = javaClass;
+        while (outer.getEnclosingClass().isPresent()) {
+            outer = outer.getEnclosingClass().get();
+        }
+        return outer.isAnnotatedWith(TransactionalUseCase.class);
     }
 
     /* --- Layered architecture incl. 'monitor' layer --- */
@@ -254,11 +285,11 @@ public class ArchitectureTest {
             .dependOnClassesThat()
             .resideInAnyPackage("..infrastructure.persistence..", "..monitor..");
 
-    /** Inbound adapters (HTTP, events) reach the domain only through use cases, never through repositories. */
+    /** Inbound adapters (HTTP) reach the domain only through use cases, never through repositories. */
     @ArchTest
     static final ArchRule inbound_adapters_do_not_access_repositories = noClasses()
             .that()
-            .resideInAnyPackage("..infrastructure.web..", "..infrastructure.event..")
+            .resideInAPackage("..infrastructure.web..")
             .should()
             .dependOnClassesThat()
             .resideInAPackage("..domain..repository..")

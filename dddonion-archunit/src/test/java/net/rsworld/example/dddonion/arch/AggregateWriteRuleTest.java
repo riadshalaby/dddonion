@@ -22,19 +22,6 @@ class AggregateWriteRuleTest {
     }
 
     @Test
-    void detectsWritesToForeignAggregateRepository() {
-        String details = violations(ArchitectureTest.aggregates_write_only_their_own_repository);
-
-        assertTrue(details.contains("writesViaCall"), details);
-        assertTrue(details.contains("writesViaMethodReference"), details);
-        assertTrue(details.contains("deletesForeign"), details);
-        assertTrue(details.contains("FixtureCustomerRepository.save"), details);
-        assertTrue(details.contains("FixtureCustomerRepository.delete"), details);
-        assertFalse(details.contains("readsForeign"), details);
-        assertFalse(details.contains("writesOwn"), details);
-    }
-
-    @Test
     void detectsAggregateReferenceWithoutId() {
         String details = violations(ArchitectureTest.aggregates_reference_each_other_only_by_id);
 
@@ -47,7 +34,26 @@ class AggregateWriteRuleTest {
         String details = violations(ArchitectureTest.inbound_adapters_do_not_access_repositories);
 
         assertTrue(details.contains("FixtureRepositoryController"), details);
-        assertTrue(details.contains("FixtureRepositoryListener"), details);
-        assertFalse(details.contains("FixtureUseCaseListener"), details);
+    }
+
+    @Test
+    void detectsRepositoryWritesOutsideTransactionalUseCase() {
+        String details = violations(ArchitectureTest.repository_writes_only_in_transactional_use_cases);
+
+        assertTrue(details.contains("NonTransactionalWriter.writesViaCall"), details);
+        assertTrue(details.contains("NonTransactionalWriter.writesViaMethodReference"), details);
+        assertTrue(details.contains("NonTransactionalWriter.deletesForeign"), details);
+        assertTrue(details.contains("NonTransactionalWriter.writesOwn"), details);
+        assertFalse(details.contains("readsForeign"), details);
+        assertFalse(details.contains("service.TransactionalWriter"), details);
+    }
+
+    @Test
+    void detectsEventPublishingOutsideTransactionalUseCase() {
+        String details = violations(ArchitectureTest.domain_events_published_only_in_transactional_use_cases);
+
+        assertTrue(details.contains("NonTransactionalPublisher.publishesViaCall"), details);
+        assertTrue(details.contains("NonTransactionalPublisher.publishesViaMethodReference"), details);
+        assertFalse(details.contains("service.TransactionalPublisher"), details);
     }
 }
