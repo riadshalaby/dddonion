@@ -4,8 +4,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import net.rsworld.example.dddonion.application.context.ActorType;
 import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
@@ -26,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import reactor.test.publisher.PublisherProbe;
 
 class PlaceOrderServiceTest {
 
@@ -48,7 +47,7 @@ class PlaceOrderServiceTest {
     private void customerExists(String limit, String open) {
         var customer = new Customer(
                 CUSTOMER_ID, new CustomerEmail("john.doe@example.com"), Money.of(limit), Money.of(open), 0L);
-        when(customers.findById(CUSTOMER_ID)).thenReturn(CompletableFuture.completedFuture(Optional.of(customer)));
+        when(customers.findById(CUSTOMER_ID)).thenReturn(Mono.just(customer));
     }
 
     private static PlaceOrderCommand cmd(String total) {
@@ -56,8 +55,7 @@ class PlaceOrderServiceTest {
     }
 
     private void saveSucceeds() {
-        when(orders.save(any(Order.class)))
-                .thenAnswer(inv -> CompletableFuture.completedFuture((Order) inv.getArgument(0)));
+        when(orders.save(any(Order.class))).thenAnswer(inv -> Mono.just((Order) inv.getArgument(0)));
         when(publisher.publish(any())).thenReturn(Mono.empty());
     }
 
@@ -93,7 +91,7 @@ class PlaceOrderServiceTest {
     @Test
     @DisplayName("Lehnt einen unbekannten Customer ab, ohne zu speichern oder zu publizieren")
     void rejectsUnknownCustomer() {
-        when(customers.findById(CUSTOMER_ID)).thenReturn(CompletableFuture.completedFuture(Optional.empty()));
+        when(customers.findById(CUSTOMER_ID)).thenReturn(Mono.empty());
 
         StepVerifier.create(service.handle(cmd("10.00"), META))
                 .expectError(UnknownCustomerException.class)
@@ -132,7 +130,7 @@ class PlaceOrderServiceTest {
     void doesNotPublishEventsWhenPersistenceFails() {
         customerExists("1000.00", "0.00");
         RuntimeException boom = new RuntimeException("db unavailable");
-        when(orders.save(any(Order.class))).thenReturn(CompletableFuture.failedFuture(boom));
+        when(orders.save(any(Order.class))).thenReturn(Mono.error(boom));
 
         StepVerifier.create(service.handle(cmd("42.50"), META))
                 .expectErrorMatches(err -> err == boom)
@@ -145,7 +143,12 @@ class PlaceOrderServiceTest {
     @Test
     @DisplayName("Liest den Customer erst beim Subscribe")
     void loadsCustomerLazily() {
+        PublisherProbe<Customer> lookup = PublisherProbe.empty();
+        when(customers.findById(CUSTOMER_ID)).thenReturn(lookup.mono());
+
         service.handle(cmd("1.00"), META);
-        verifyNoInteractions(customers, orders, publisher);
+
+        lookup.assertWasNotSubscribed();
+        verifyNoInteractions(orders, publisher);
     }
 }

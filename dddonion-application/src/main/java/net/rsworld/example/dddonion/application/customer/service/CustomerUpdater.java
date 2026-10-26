@@ -50,10 +50,10 @@ final class CustomerUpdater {
     }
 
     private Mono<Customer> loadModifySave(CustomerId id, Consumer<Customer> change) {
-        return Mono.fromCompletionStage(() -> customers.findById(id))
-                .flatMap(found -> found.map(Mono::just).orElseGet(Mono::empty))
+        return customers
+                .findById(id)
                 .switchIfEmpty(Mono.error(() -> new CustomerNotFoundException(id)))
                 .doOnNext(change)
-                .flatMap(customer -> Mono.fromCompletionStage(() -> customers.save(customer)));
+                .flatMap(customers::save);
     }
 }

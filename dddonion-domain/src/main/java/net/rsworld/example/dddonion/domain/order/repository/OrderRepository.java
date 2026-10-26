@@ -1,14 +1,13 @@
 package net.rsworld.example.dddonion.domain.order.repository;
 
-import java.util.Optional;
-import java.util.concurrent.CompletionStage;
 import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
+import reactor.core.publisher.Mono;
 
-/** Domain-Port: framework-free (JDK types). Not-Found is signaled via Optional. */
+/** Domain-Port: reactive and lazy, work starts on subscription. Not-Found is signaled by an empty {@link Mono}. */
 public interface OrderRepository {
 
-    CompletionStage<Order> save(Order order);
+    Mono<Order> save(Order order);
 
-    CompletionStage<Optional<Order>> findById(OrderId id);
+    Mono<Order> findById(OrderId id);
 }

@@ -8,8 +8,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import net.rsworld.example.dddonion.application.context.ActorType;
 import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.domain.common.ConcurrentAggregateUpdateException;
@@ -22,6 +20,7 @@ import net.rsworld.example.dddonion.domain.customer.repository.CustomerRepositor
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 class RecordOrderExposureServiceTest {
@@ -31,8 +30,8 @@ class RecordOrderExposureServiceTest {
         var customers = mock(CustomerRepository.class);
         var id = CustomerId.newId();
         var loaded = new Customer(id, new CustomerEmail("a@example.com"), Money.of("100"), Money.of("10"), 0L);
-        when(customers.findById(id)).thenReturn(CompletableFuture.completedFuture(Optional.of(loaded)));
-        when(customers.save(any())).thenAnswer(inv -> CompletableFuture.completedFuture(inv.getArgument(0)));
+        when(customers.findById(id)).thenReturn(Mono.just(loaded));
+        when(customers.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
         var service = new RecordOrderExposureService(new CustomerUpdater(customers));
         var meta = new UseCaseMetadata(ActorType.UNKNOWN, "event", "corr-1");
 
@@ -49,11 +48,10 @@ class RecordOrderExposureServiceTest {
         var customers = mock(CustomerRepository.class);
         var id = CustomerId.newId();
         when(customers.findById(id))
-                .thenAnswer(inv -> CompletableFuture.completedFuture(Optional.of(
-                        new Customer(id, new CustomerEmail("a@example.com"), Money.of("100"), Money.zero(), 0L))));
+                .thenAnswer(inv -> Mono.just(
+                        new Customer(id, new CustomerEmail("a@example.com"), Money.of("100"), Money.zero(), 0L)));
         when(customers.save(any()))
-                .thenAnswer(inv ->
-                        CompletableFuture.failedFuture(new ConcurrentAggregateUpdateException("Customer", id.value())));
+                .thenAnswer(inv -> Mono.error(new ConcurrentAggregateUpdateException("Customer", id.value())));
         var service = new RecordOrderExposureService(new CustomerUpdater(customers));
         var meta = new UseCaseMetadata(ActorType.UNKNOWN, "event", "corr-1");
 

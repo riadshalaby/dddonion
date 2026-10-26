@@ -1,7 +1,5 @@
 package net.rsworld.example.dddonion.infrastructure.persistence.r2dbc.adapter;
 
-import java.util.Optional;
-import java.util.concurrent.CompletionStage;
 import net.rsworld.example.dddonion.domain.common.ConcurrentAggregateUpdateException;
 import net.rsworld.example.dddonion.domain.customer.model.Customer;
 import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
@@ -34,17 +32,19 @@ public class CustomerRepositoryAdapter implements CustomerRepository {
     }
 
     @Override
-    public CompletionStage<Customer> save(Customer customer) {
-        CustomerRow row = CustomerMapper.toRow(customer);
-
-        Mono<Customer> result = repo.existsById(row.getId())
-                .flatMap(exists -> {
-                    if (!exists) {
-                        // INSERT path: version null -> Spring Data inserts with the initial version
-                        row.setVersion(null);
-                    }
-                    // UPDATE path: version stays the one of the domain object (UPDATE ... WHERE version = ?)
-                    return repo.save(row);
+    public Mono<Customer> save(Customer customer) {
+        // deferred: the row is built per subscription, so resubscribing never reuses a row mutated by an earlier
+        // attempt
+        return Mono.defer(() -> {
+                    CustomerRow row = CustomerMapper.toRow(customer);
+                    return repo.existsById(row.getId()).flatMap(exists -> {
+                        if (!exists) {
+                            // INSERT path: version null -> Spring Data inserts with the initial version
+                            row.setVersion(null);
+                        }
+                        // UPDATE path: version stays the one of the domain object (UPDATE ... WHERE version = ?)
+                        return repo.save(row);
+                    });
                 })
                 .map(CustomerMapper::toDomain)
                 .onErrorMap(
@@ -54,17 +54,11 @@ public class CustomerRepositoryAdapter implements CustomerRepository {
                 .onErrorMap(
                         e -> e instanceof DuplicateKeyException && violates(e, EMAIL_UNIQUE_KEY),
                         e -> new EmailAlreadyRegisteredException(customer.email()));
-
-        return result.toFuture();
     }
 
     @Override
-    public CompletionStage<Optional<Customer>> findById(CustomerId id) {
-        return repo.findById(id.value())
-                .map(CustomerMapper::toDomain)
-                .map(Optional::of)
-                .defaultIfEmpty(Optional.empty())
-                .toFuture();
+    public Mono<Customer> findById(CustomerId id) {
+        return repo.findById(id.value()).map(CustomerMapper::toDomain);
     }
 
     /** Only the e-mail unique key counts as an e-mail conflict; other duplicates (e.g. primary key) pass through. */

@@ -4,8 +4,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import java.time.Duration;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import net.rsworld.example.dddonion.domain.common.ConcurrentAggregateUpdateException;
 import net.rsworld.example.dddonion.domain.common.Money;
 import net.rsworld.example.dddonion.domain.customer.model.Customer;
@@ -15,6 +13,7 @@ import net.rsworld.example.dddonion.domain.customer.model.CustomerNotFoundExcept
 import net.rsworld.example.dddonion.domain.customer.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 class CustomerUpdaterTest {
@@ -36,8 +35,8 @@ class CustomerUpdaterTest {
     void appliesChangeAndSaves() {
         var id = CustomerId.newId();
         var loaded = customer(id);
-        when(customers.findById(id)).thenReturn(CompletableFuture.completedFuture(Optional.of(loaded)));
-        when(customers.save(any())).thenAnswer(inv -> CompletableFuture.completedFuture(inv.getArgument(0)));
+        when(customers.findById(id)).thenReturn(Mono.just(loaded));
+        when(customers.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
 
         StepVerifier.create(updater.update(id, c -> c.changeCreditLimit(Money.of("5"))))
                 .expectNextMatches(c -> c.creditLimit().equals(Money.of("5")))
@@ -49,7 +48,7 @@ class CustomerUpdaterTest {
     @Test
     void failsWithNotFoundForUnknownCustomer() {
         var id = CustomerId.newId();
-        when(customers.findById(id)).thenReturn(CompletableFuture.completedFuture(Optional.empty()));
+        when(customers.findById(id)).thenReturn(Mono.empty());
 
         StepVerifier.create(updater.update(id, c -> {})).verifyError(CustomerNotFoundException.class);
 
@@ -61,13 +60,10 @@ class CustomerUpdaterTest {
         var id = CustomerId.newId();
         var first = customer(id);
         var second = customer(id);
-        when(customers.findById(id))
-                .thenReturn(CompletableFuture.completedFuture(Optional.of(first)))
-                .thenReturn(CompletableFuture.completedFuture(Optional.of(second)));
+        when(customers.findById(id)).thenReturn(Mono.just(first)).thenReturn(Mono.just(second));
         when(customers.save(first))
-                .thenReturn(
-                        CompletableFuture.failedFuture(new ConcurrentAggregateUpdateException("Customer", id.value())));
-        when(customers.save(second)).thenReturn(CompletableFuture.completedFuture(second));
+                .thenReturn(Mono.error(new ConcurrentAggregateUpdateException("Customer", id.value())));
+        when(customers.save(second)).thenReturn(Mono.just(second));
 
         StepVerifier.withVirtualTime(() -> updater.update(id, c -> c.changeCreditLimit(Money.of("7"))))
                 .thenAwait(Duration.ofSeconds(1))
@@ -83,13 +79,10 @@ class CustomerUpdaterTest {
         var id = CustomerId.newId();
         var first = customer(id);
         var second = customer(id);
-        when(customers.findById(id))
-                .thenReturn(CompletableFuture.completedFuture(Optional.of(first)))
-                .thenReturn(CompletableFuture.completedFuture(Optional.of(second)));
+        when(customers.findById(id)).thenReturn(Mono.just(first)).thenReturn(Mono.just(second));
         when(customers.save(first))
-                .thenReturn(
-                        CompletableFuture.failedFuture(new ConcurrentAggregateUpdateException("Customer", id.value())));
-        when(customers.save(second)).thenReturn(CompletableFuture.completedFuture(second));
+                .thenReturn(Mono.error(new ConcurrentAggregateUpdateException("Customer", id.value())));
+        when(customers.save(second)).thenReturn(Mono.just(second));
 
         // first backoff is 10 ms with 50 % jitter, so the retry happens between 5 and 15 ms
         StepVerifier.withVirtualTime(() -> updater.update(id, c -> {}))
@@ -133,7 +126,7 @@ class CustomerUpdaterTest {
     @Test
     void doesNotRetryOtherErrors() {
         var id = CustomerId.newId();
-        when(customers.findById(id)).thenReturn(CompletableFuture.completedFuture(Optional.empty()));
+        when(customers.findById(id)).thenReturn(Mono.empty());
 
         StepVerifier.withVirtualTime(() -> updater.update(id, c -> {}, 10))
                 .thenAwait(Duration.ofMinutes(1))
@@ -144,10 +137,10 @@ class CustomerUpdaterTest {
 
     private ConcurrentAggregateUpdateException[] alwaysConflicting(CustomerId id) {
         var last = new ConcurrentAggregateUpdateException[1];
-        when(customers.findById(id)).thenAnswer(inv -> CompletableFuture.completedFuture(Optional.of(customer(id))));
+        when(customers.findById(id)).thenAnswer(inv -> Mono.just(customer(id)));
         when(customers.save(any())).thenAnswer(inv -> {
             last[0] = new ConcurrentAggregateUpdateException("Customer", id.value());
-            return CompletableFuture.failedFuture(last[0]);
+            return Mono.error(last[0]);
         });
         return last;
     }
