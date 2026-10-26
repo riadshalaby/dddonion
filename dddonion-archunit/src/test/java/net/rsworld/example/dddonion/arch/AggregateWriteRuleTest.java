@@ -47,4 +47,13 @@ class AggregateWriteRuleTest {
         assertFalse(details.contains("readsForeign"), details);
         assertFalse(details.contains("service.TransactionalWriter"), details);
     }
+
+    @Test
+    void detectsEventPublishingOutsideTransactionalUseCase() {
+        String details = violations(ArchitectureTest.domain_events_published_only_in_transactional_use_cases);
+
+        assertTrue(details.contains("NonTransactionalPublisher.publishesViaCall"), details);
+        assertTrue(details.contains("NonTransactionalPublisher.publishesViaMethodReference"), details);
+        assertFalse(details.contains("service.TransactionalPublisher"), details);
+    }
 }
