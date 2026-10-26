@@ -17,6 +17,7 @@ import net.rsworld.example.dddonion.architecture.UseCase;
 import net.rsworld.example.dddonion.bootstrap.observability.UseCaseObservability;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.Ordered;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
@@ -88,7 +89,9 @@ class UseCasePipelinePostProcessorTest {
             new StaticListableBeanFactory(Map.of("observationRegistry", ObservationRegistry.NOOP))
                     .getBeanProvider(ObservationRegistry.class),
             new StaticListableBeanFactory(Map.of("transactionalOperator", tx))
-                    .getBeanProvider(TransactionalOperator.class));
+                    .getBeanProvider(TransactionalOperator.class),
+            new StaticListableBeanFactory(Map.of("events", mock(ApplicationEventPublisher.class)))
+                    .getBeanProvider(ApplicationEventPublisher.class));
 
     @Test
     void wrapsBeanImplementingUseCaseInterface() {

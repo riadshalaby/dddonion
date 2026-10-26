@@ -12,6 +12,7 @@ import net.rsworld.example.dddonion.bootstrap.transaction.UseCaseTransaction;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.transaction.reactive.TransactionalOperator;
@@ -21,7 +22,8 @@ import reactor.core.publisher.Mono;
 /**
  * Builds the use case pipeline around every bean that implements a {@link UseCase} interface, so a new use case cannot
  * reach the application without audit and metrics. From the outside in: {@link UseCaseObservability}, then, for a bean
- * annotated with {@link TransactionalUseCase}, {@link UseCaseTransaction} (retry, transaction), then the service.
+ * annotated with {@link TransactionalUseCase}, {@link UseCaseTransaction} (retry, transaction, post-commit events),
+ * then the service.
  *
  * <p>Fails the startup if a bean implements more than one use case interface, if two beans share a use case name, if no
  * {@link ObservationRegistry} is available (a use case must never run unaudited, so this is deliberate), or if
@@ -35,12 +37,16 @@ public class UseCasePipelinePostProcessor implements BeanPostProcessor, Ordered 
 
     private final ObjectProvider<ObservationRegistry> registry;
     private final ObjectProvider<TransactionalOperator> tx;
+    private final ObjectProvider<ApplicationEventPublisher> events;
     private final Map<String, Registration> namesInUse = new ConcurrentHashMap<>();
 
     public UseCasePipelinePostProcessor(
-            ObjectProvider<ObservationRegistry> registry, ObjectProvider<TransactionalOperator> tx) {
+            ObjectProvider<ObservationRegistry> registry,
+            ObjectProvider<TransactionalOperator> tx,
+            ObjectProvider<ApplicationEventPublisher> events) {
         this.registry = registry;
         this.tx = tx;
+        this.events = events;
     }
 
     @Override
@@ -83,7 +89,7 @@ public class UseCasePipelinePostProcessor implements BeanPostProcessor, Ordered 
     @SuppressWarnings("unchecked")
     private <T> T wrap(Class<T> useCase, Object bean, boolean transactional) {
         UnaryOperator<Mono<?>> inner =
-                transactional ? new UseCaseTransaction(tx.getObject()) : UnaryOperator.identity();
+                transactional ? new UseCaseTransaction(tx.getObject(), events.getObject()) : UnaryOperator.identity();
         return UseCaseObservability.wrap(useCase, (T) bean, registry.getObject(), inner);
     }
 

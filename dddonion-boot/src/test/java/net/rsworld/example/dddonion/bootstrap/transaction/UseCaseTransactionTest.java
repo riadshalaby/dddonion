@@ -3,10 +3,13 @@ package net.rsworld.example.dddonion.bootstrap.transaction;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.domain.common.ConcurrentAggregateUpdateException;
+import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.reactive.AbstractReactiveTransactionManager;
@@ -53,8 +56,31 @@ class UseCaseTransactionTest {
         }
     }
 
+    private record TestEvent(String name) implements DomainEvent {
+        @Override
+        public String aggregateId() {
+            return "1";
+        }
+
+        @Override
+        public long sequence() {
+            return 1;
+        }
+
+        @Override
+        public Instant occurredAt() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public String type() {
+            return "Test";
+        }
+    }
+
     private final RecordingTransactionManager manager = new RecordingTransactionManager();
-    private final UseCaseTransaction transaction = new UseCaseTransaction(TransactionalOperator.create(manager));
+    private final UseCaseTransaction transaction = new UseCaseTransaction(
+            TransactionalOperator.create(manager), event -> manager.events.add(((TestEvent) event).name()));
     private final AtomicInteger calls = new AtomicInteger();
 
     /** Counts subscriptions, like a service that is re-invoked per attempt. */
@@ -124,5 +150,54 @@ class UseCaseTransactionTest {
 
         assertThat(calls).hasValue(3);
         assertThat(failures).hasSize(3);
+    }
+
+    private final DomainEventPublisherPort publisher = PostCommitEvents.publisher();
+
+    private Mono<Void> publish(String name) {
+        return publisher.publish(new TestEvent(name));
+    }
+
+    @Test
+    void publishesBufferedEventsAfterCommitInOrder() {
+        Mono<?> invocation = publish("e1").then(publish("e2")).thenReturn("x");
+
+        StepVerifier.create(transaction.apply(invocation))
+                .expectNextMatches("x"::equals)
+                .verifyComplete();
+
+        assertThat(manager.events).containsExactly("begin", "commit", "e1", "e2");
+    }
+
+    @Test
+    void discardsEventsOnRollback() {
+        Mono<?> invocation = publish("e1").then(Mono.error(new IllegalStateException("boom")));
+
+        StepVerifier.create(transaction.apply(invocation))
+                .expectError(IllegalStateException.class)
+                .verify();
+
+        assertThat(manager.events).containsExactly("begin", "rollback");
+    }
+
+    @Test
+    void publishesOnlyEventsOfTheSuccessfulAttempt() {
+        Mono<?> invocation = counting(() -> calls.get() == 1
+                ? publish("e1").then(Mono.error(new ConcurrentAggregateUpdateException("Customer", "1")))
+                : publish("e2").thenReturn("ok"));
+
+        StepVerifier.withVirtualTime(() -> transaction.apply(invocation))
+                .thenAwait(Duration.ofSeconds(1))
+                .expectNextMatches("ok"::equals)
+                .verifyComplete();
+
+        assertThat(manager.events).containsExactly("begin", "rollback", "begin", "commit", "e2");
+    }
+
+    @Test
+    void publishesEventsOfEmptyResult() {
+        StepVerifier.create(transaction.apply(publish("e1"))).verifyComplete();
+
+        assertThat(manager.events).containsExactly("begin", "commit", "e1");
     }
 }
