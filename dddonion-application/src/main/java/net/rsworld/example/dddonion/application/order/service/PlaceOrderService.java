@@ -49,8 +49,8 @@ class PlaceOrderService implements PlaceOrderUseCase {
                             .then(Mono.defer(() -> orders.save(order)))
                             .then(publishEvents(order));
                 })
-                // log only the id: keep customer data out of the log
-                .doOnNext(id -> log.info("Order {} placed", id.value()));
+                // log only the id: keep customer data out of the log; the commit is not observable here
+                .doOnNext(id -> log.info("Order {} saved, awaiting commit", id.value()));
     }
 
     private Mono<OrderId> publishEvents(Order order) {

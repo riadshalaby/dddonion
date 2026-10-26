@@ -30,7 +30,7 @@ class WebfluxOrderApiIT {
     private WebTestClient client;
 
     @Container
-    static MariaDBContainer maria = new MariaDBContainer("mariadb:11")
+    static MariaDBContainer maria = new MariaDBContainer("mariadb:11.8")
             .withUsername("test")
             .withPassword("test")
             .withDatabaseName("test");
