@@ -22,6 +22,7 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.architecture.ApplicationComponent;
 import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.architecture.UseCase;
@@ -161,7 +162,38 @@ public class ArchitectureTest {
             .that()
             .resideInAPackage("..application..")
             .should(writeToRepositoriesOnlyWhenTransactional())
-            .because("writes need the transaction, retry and post-commit event handling of @TransactionalUseCase");
+            .because("writes need the transaction, retry and post-commit event handling of @TransactionalUseCase;"
+                    + " shared building blocks read and compute, only the service with @TransactionalUseCase saves");
+
+    /**
+     * Events are buffered per transaction attempt and published after the commit; outside {@code @TransactionalUseCase}
+     * there is no buffer and {@code publish} fails at runtime. Method references count as accesses.
+     */
+    @ArchTest
+    static final ArchRule domain_events_published_only_in_transactional_use_cases = classes()
+            .that()
+            .resideInAPackage("..application..")
+            .should(publishEventsOnlyWhenTransactional())
+            .because("events are published after the commit, which only @TransactionalUseCase provides");
+
+    private static ArchCondition<JavaClass> publishEventsOnlyWhenTransactional() {
+        return new ArchCondition<>(
+                "publish domain events only if annotated with @" + TransactionalUseCase.class.getSimpleName()) {
+            @Override
+            public void check(JavaClass service, ConditionEvents events) {
+                if (isTransactional(service)) {
+                    return;
+                }
+                for (JavaAccess<?> access : service.getAccessesFromSelf()) {
+                    if (access instanceof JavaCodeUnitAccess<?>
+                            && access.getTargetOwner().isEquivalentTo(DomainEventPublisherPort.class)
+                            && access.getTarget().getName().equals("publish")) {
+                        events.add(SimpleConditionEvent.violated(access, access.getDescription()));
+                    }
+                }
+            }
+        };
+    }
 
     private static ArchCondition<JavaClass> writeToRepositoriesOnlyWhenTransactional() {
         return new ArchCondition<>("write to repositories (non find*/exists* methods) only if annotated with @"
