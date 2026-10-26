@@ -161,7 +161,7 @@ Regeln, die ArchUnit prüft:
 
 ## Bekannte Grenzen
 - **Kein Outbox**: Stürzt der Prozess zwischen Commit und Publizieren ab, geht das Event verloren. Zuverlässige Zustellung bräuchte eine Outbox-Tabelle in derselben Transaktion.
-- Events sind nur "at most once": Das Publizieren läuft nach dem Commit und wird bei einem Fehler im Listener nicht wiederholt.
+- Events sind nur "at most once": Das Publizieren läuft nach dem Commit. Wirft ein Listener (oder der Executor, z.B. bei voller Queue), wird der Fehler mit dem Event-Typ geloggt und nicht weitergereicht; die übrigen Events werden trotzdem publiziert, und das Ergebnis des Use Cases gilt (kein Fehler für den Aufrufer, kein Retry), weil der Zustand bereits committet ist. Das Event selbst ist dann verloren.
 
 ## Technischer Stand
 - Spring Boot: `4.0.1`
