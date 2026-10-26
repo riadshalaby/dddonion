@@ -8,7 +8,6 @@ import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import net.rsworld.example.dddonion.domain.order.repository.OrderRepository;
 import reactor.core.publisher.Mono;
 
-/** Application service: adapts the {@code CompletionStage<Optional<Order>>} port to a reactive query. */
 @ApplicationComponent
 class GetOrderService implements GetOrderUseCase {
 
@@ -20,7 +19,6 @@ class GetOrderService implements GetOrderUseCase {
 
     @Override
     public Mono<Order> findById(OrderId id, UseCaseMetadata metadata) {
-        return Mono.fromCompletionStage(() -> orders.findById(id))
-                .flatMap(found -> found.map(Mono::just).orElseGet(Mono::empty));
+        return orders.findById(id);
     }
 }

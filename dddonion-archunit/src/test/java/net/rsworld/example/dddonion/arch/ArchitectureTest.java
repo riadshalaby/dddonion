@@ -41,21 +41,16 @@ public class ArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(
-                    "..application..",
-                    "..infrastructure..",
-                    "..bootstrap..",
-                    "..monitor..",
-                    "org.springframework..",
-                    "reactor..");
+                    "..application..", "..infrastructure..", "..bootstrap..", "..monitor..", "org.springframework..");
 
-    /** Domain should only depend on JDK and itself. */
+    /** Domain should only depend on JDK, Reactor (reactive port types) and itself. */
     @ArchTest
     static final ArchRule domain_should_only_depend_on_java_and_domain = classes()
             .that()
             .resideInAPackage("..domain..")
             .should()
             .onlyDependOnClassesThat()
-            .resideInAnyPackage("..domain..", "java..", "javax..");
+            .resideInAnyPackage("..domain..", "java..", "javax..", "reactor..", "org.reactivestreams..");
 
     /* --- Application: relaxed whitelist --- */
 

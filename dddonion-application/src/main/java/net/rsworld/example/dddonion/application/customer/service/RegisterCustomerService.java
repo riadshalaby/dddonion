@@ -24,7 +24,8 @@ class RegisterCustomerService implements RegisterCustomerUseCase {
     @Override
     public Mono<CustomerId> handle(RegisterCustomerCommand cmd, UseCaseMetadata metadata) {
         var customer = new Customer(cmd.email(), cmd.creditLimit());
-        return Mono.fromCompletionStage(() -> customers.save(customer))
+        return customers
+                .save(customer)
                 .map(Customer::id)
                 // log only the id: the e-mail is PII
                 .doOnNext(id -> log.info("Customer {} registered", id.value()));

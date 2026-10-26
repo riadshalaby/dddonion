@@ -80,15 +80,13 @@ class OrderRepositoryAdapterIT {
 
     @Test
     @DisplayName("Speichert eine platzierte Order und liest sie anschließend über findById wieder ein")
-    void saveAndFind_optionalNotEmpty() {
+    void saveAndFind() {
         var o = new Order(CustomerId.newId(), new Money(new BigDecimal("12.34")));
         o.place(); // domain transition first, then persist – mirrors production flow
 
-        // Supplier form: CompletionStage-returning ports start work when called, so calling them while assembling
-        // the chain would run save and findById concurrently (findById racing the INSERT).
-        StepVerifier.create(Mono.fromCompletionStage(() -> adapter.save(o))
-                        .then(Mono.fromCompletionStage(() -> adapter.findById(o.id())))
-                        .map(opt -> opt.orElseThrow(() -> new AssertionError("Order not found via adapter.findById"))))
+        StepVerifier.create(adapter.save(o)
+                        .then(adapter.findById(o.id()))
+                        .switchIfEmpty(Mono.error(() -> new AssertionError("Order not found via adapter.findById"))))
                 .expectNextMatches(found -> found.id().value().equals(o.id().value()))
                 .verifyComplete();
     }
@@ -98,12 +96,12 @@ class OrderRepositoryAdapterIT {
     void persistsDomainVersion() {
         var o = placedOrder();
 
-        Mono<Order> flow = Mono.fromCompletionStage(() -> adapter.save(o))
+        Mono<Order> flow = adapter.save(o)
                 .then(load(o.id()))
                 .doOnNext(loaded -> assertEquals(1L, loaded.version()))
                 .flatMap(loaded -> {
                     loaded.pay();
-                    return Mono.fromCompletionStage(() -> adapter.save(loaded));
+                    return adapter.save(loaded);
                 })
                 .then(load(o.id()));
 
@@ -120,13 +118,12 @@ class OrderRepositoryAdapterIT {
     void staleUpdateFailsWithConcurrentAggregateUpdate() {
         var o = placedOrder();
 
-        Mono<Order> flow = Mono.fromCompletionStage(() -> adapter.save(o))
+        Mono<Order> flow = adapter.save(o)
                 .then(Mono.zip(load(o.id()), load(o.id())))
                 .flatMap(copies -> {
                     copies.getT1().pay();
                     copies.getT2().pay();
-                    return Mono.fromCompletionStage(() -> adapter.save(copies.getT1()))
-                            .then(Mono.fromCompletionStage(() -> adapter.save(copies.getT2())));
+                    return adapter.save(copies.getT1()).then(adapter.save(copies.getT2()));
                 });
 
         StepVerifier.create(flow)
@@ -143,16 +140,14 @@ class OrderRepositoryAdapterIT {
                 .map(row -> row.get("created_at", LocalDateTime.class))
                 .one();
 
-        Mono<LocalDateTime[]> flow = Mono.fromCompletionStage(() -> adapter.save(o))
+        Mono<LocalDateTime[]> flow = adapter.save(o).then(readCreatedAt).flatMap(before -> load(o.id())
+                .delayElement(Duration.ofMillis(1500))
+                .flatMap(loaded -> {
+                    loaded.pay();
+                    return adapter.save(loaded);
+                })
                 .then(readCreatedAt)
-                .flatMap(before -> load(o.id())
-                        .delayElement(Duration.ofMillis(1500))
-                        .flatMap(loaded -> {
-                            loaded.pay();
-                            return Mono.fromCompletionStage(() -> adapter.save(loaded));
-                        })
-                        .then(readCreatedAt)
-                        .map(after -> new LocalDateTime[] {before, after}));
+                .map(after -> new LocalDateTime[] {before, after}));
 
         StepVerifier.create(flow).assertNext(v -> assertEquals(v[0], v[1])).verifyComplete();
     }
@@ -164,7 +159,7 @@ class OrderRepositoryAdapterIT {
     }
 
     private static Mono<Order> load(OrderId id) {
-        return Mono.fromCompletionStage(() -> adapter.findById(id))
-                .map(opt -> opt.orElseThrow(() -> new AssertionError("Order not found: " + id.value())));
+        return adapter.findById(id)
+                .switchIfEmpty(Mono.error(() -> new AssertionError("Order not found: " + id.value())));
     }
 }

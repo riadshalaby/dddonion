@@ -3,7 +3,6 @@ package net.rsworld.example.dddonion.application.customer.service;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.util.concurrent.CompletableFuture;
 import net.rsworld.example.dddonion.application.context.ActorType;
 import net.rsworld.example.dddonion.application.context.UseCaseMetadata;
 import net.rsworld.example.dddonion.domain.common.Money;
@@ -14,6 +13,7 @@ import net.rsworld.example.dddonion.domain.customer.model.EmailAlreadyRegistered
 import net.rsworld.example.dddonion.domain.customer.repository.CustomerRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 class RegisterCustomerServiceTest {
@@ -25,7 +25,7 @@ class RegisterCustomerServiceTest {
     @Test
     void savesNewCustomerAndReturnsItsId() {
         var customers = mock(CustomerRepository.class);
-        when(customers.save(any())).thenAnswer(inv -> CompletableFuture.completedFuture(inv.getArgument(0)));
+        when(customers.save(any())).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
 
         StepVerifier.create(new RegisterCustomerService(customers).handle(CMD, META))
                 .expectNextCount(1)
@@ -41,8 +41,7 @@ class RegisterCustomerServiceTest {
     @Test
     void propagatesDuplicateEmail() {
         var customers = mock(CustomerRepository.class);
-        when(customers.save(any()))
-                .thenReturn(CompletableFuture.failedFuture(new EmailAlreadyRegisteredException(CMD.email())));
+        when(customers.save(any())).thenReturn(Mono.error(new EmailAlreadyRegisteredException(CMD.email())));
 
         StepVerifier.create(new RegisterCustomerService(customers).handle(CMD, META))
                 .verifyError(EmailAlreadyRegisteredException.class);

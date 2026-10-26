@@ -15,8 +15,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Application-Service: orchestrates Domain + Ports. Adaptation from CompletionStage -> Reactor happens here. The
- * customer is only read for the credit check and never saved: one aggregate (the order) changes per command.
+ * Application-Service: orchestrates Domain + Ports. The customer is only read for the credit check and never saved: one
+ * aggregate (the order) changes per command.
  */
 @Slf4j
 @ApplicationComponent
@@ -34,8 +34,8 @@ class PlaceOrderService implements PlaceOrderUseCase {
 
     @Override
     public Mono<OrderId> handle(PlaceOrderCommand cmd, UseCaseMetadata metadata) {
-        return Mono.fromCompletionStage(() -> customers.findById(cmd.customerId()))
-                .flatMap(Mono::justOrEmpty)
+        return customers
+                .findById(cmd.customerId())
                 .switchIfEmpty(Mono.error(() -> new UnknownCustomerException(cmd.customerId())))
                 .doOnNext(customer -> customer.ensureCreditFor(cmd.total()))
                 .map(customer -> {
@@ -49,7 +49,7 @@ class PlaceOrderService implements PlaceOrderUseCase {
     }
 
     private Mono<OrderId> persistAndPublish(Order order) {
-        return Mono.fromCompletionStage(() -> orders.save(order))
+        return orders.save(order)
                 .thenMany(Flux.defer(() -> Flux.fromIterable(order.pullEvents())))
                 .concatMap(events::publish)
                 .then(Mono.just(order.id()));

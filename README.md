@@ -49,7 +49,7 @@ dddonion/
 ```
 
 ## Architekturzuordnung
-- Domain: enthält Aggregate, Value Objects, Domain Events und Domain-Ports; keine Abhängigkeit auf Spring/Infrastruktur.
+- Domain: enthält Aggregate, Value Objects, Domain Events und Domain-Ports; keine Abhängigkeit auf Spring/Infrastruktur. Einzige Zusatzabhängigkeit ist `reactor-core`: Repository-Ports liefern `Mono` (lazy, ein leerer `Mono` bedeutet „nicht gefunden“), damit der Reactor-Context bis in die Adapter durchgereicht wird.
 - Architecture: Spring-freie Annotationen, die Use Cases beschreiben und für das Wiring markieren; einzige erlaubte Zusatzabhängigkeit der Application-Schicht.
 - Application: orchestriert Use Cases, ruft Domain und Ports auf.
 - Adapter (Infrastruktur): implementieren Ports und binden Frameworks/IO (HTTP, DB, eingehende Events).

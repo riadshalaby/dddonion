@@ -85,8 +85,7 @@ class CustomerRepositoryAdapterIT {
     }
 
     private static Mono<Customer> load(CustomerId id) {
-        return Mono.fromCompletionStage(() -> adapter.findById(id))
-                .map(opt -> opt.orElseThrow(() -> new AssertionError("Customer not found")));
+        return adapter.findById(id).switchIfEmpty(Mono.error(() -> new AssertionError("Customer not found")));
     }
 
     @Test
@@ -94,7 +93,7 @@ class CustomerRepositoryAdapterIT {
     void savesAndFindsNewCustomer() {
         Customer c = newCustomer("save-find@example.com");
 
-        StepVerifier.create(Mono.fromCompletionStage(() -> adapter.save(c)).then(load(c.id())))
+        StepVerifier.create(adapter.save(c).then(load(c.id())))
                 .assertNext(found -> {
                     assertEquals(c.id().value(), found.id().value());
                     assertEquals("save-find@example.com", found.email().value());
@@ -113,14 +112,10 @@ class CustomerRepositoryAdapterIT {
     void updateIncrementsVersion() {
         Customer c = newCustomer("update@example.com");
 
-        Mono<long[]> flow = Mono.fromCompletionStage(() -> adapter.save(c))
-                .then(load(c.id()))
-                .flatMap(before -> {
-                    before.recordOrder(new Money(new BigDecimal("10.00")));
-                    return Mono.fromCompletionStage(() -> adapter.save(before))
-                            .then(load(c.id()))
-                            .map(after -> new long[] {before.version(), after.version()});
-                });
+        Mono<long[]> flow = adapter.save(c).then(load(c.id())).flatMap(before -> {
+            before.recordOrder(new Money(new BigDecimal("10.00")));
+            return adapter.save(before).then(load(c.id())).map(after -> new long[] {before.version(), after.version()});
+        });
 
         StepVerifier.create(flow).assertNext(v -> assertEquals(v[0] + 1, v[1])).verifyComplete();
     }
@@ -130,13 +125,12 @@ class CustomerRepositoryAdapterIT {
     void staleUpdateFailsWithConcurrentAggregateUpdate() {
         Customer c = newCustomer("stale@example.com");
 
-        Mono<Void> flow = Mono.fromCompletionStage(() -> adapter.save(c))
+        Mono<Void> flow = adapter.save(c)
                 .then(Mono.zip(load(c.id()), load(c.id())))
                 .flatMap(copies -> {
                     copies.getT1().recordOrder(new Money(new BigDecimal("1.00")));
                     copies.getT2().recordOrder(new Money(new BigDecimal("2.00")));
-                    return Mono.fromCompletionStage(() -> adapter.save(copies.getT1()))
-                            .then(Mono.fromCompletionStage(() -> adapter.save(copies.getT2())));
+                    return adapter.save(copies.getT1()).then(adapter.save(copies.getT2()));
                 })
                 .then();
 
@@ -151,8 +145,7 @@ class CustomerRepositoryAdapterIT {
         Customer first = newCustomer("dup@example.com");
         Customer second = newCustomer("dup@example.com");
 
-        StepVerifier.create(Mono.fromCompletionStage(() -> adapter.save(first))
-                        .then(Mono.fromCompletionStage(() -> adapter.save(second))))
+        StepVerifier.create(adapter.save(first).then(adapter.save(second)))
                 .expectError(EmailAlreadyRegisteredException.class)
                 .verify();
     }
@@ -183,8 +176,7 @@ class CustomerRepositoryAdapterIT {
                 });
         var blindAdapter = new CustomerRepositoryAdapter(blind);
 
-        StepVerifier.create(Mono.fromCompletionStage(() -> adapter.save(first))
-                        .then(Mono.fromCompletionStage(() -> blindAdapter.save(second))))
+        StepVerifier.create(adapter.save(first).then(blindAdapter.save(second)))
                 .expectErrorSatisfies(e -> {
                     assertFalse(e instanceof EmailAlreadyRegisteredException, "unexpected: " + e);
                     assertInstanceOf(org.springframework.dao.DuplicateKeyException.class, e);
@@ -201,13 +193,13 @@ class CustomerRepositoryAdapterIT {
                 .map(row -> row.get("created_at", java.time.LocalDateTime.class))
                 .one();
 
-        Mono<java.time.LocalDateTime[]> flow = Mono.fromCompletionStage(() -> adapter.save(c))
+        Mono<java.time.LocalDateTime[]> flow = adapter.save(c)
                 .then(readCreatedAt)
                 .flatMap(before -> load(c.id())
                         .delayElement(java.time.Duration.ofMillis(1500))
                         .flatMap(loaded -> {
                             loaded.recordOrder(new Money(new BigDecimal("3.00")));
-                            return Mono.fromCompletionStage(() -> adapter.save(loaded));
+                            return adapter.save(loaded);
                         })
                         .then(readCreatedAt)
                         .map(after -> new java.time.LocalDateTime[] {before, after}));
