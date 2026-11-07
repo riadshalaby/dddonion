@@ -1,13 +1,13 @@
 package net.rsworld.example.dddonion.application.context;
 
 /**
- * Business classification of whoever triggers a use case. Deliberately coarse (low cardinality) so it can be used as a
- * metric dimension; it identifies a kind of caller, never an individual user.
+ * Fachliche Einordnung dessen, der einen Use Case auslöst. Bewusst grob (geringe Kardinalität), damit sie als
+ * Metrik-Dimension taugt; sie bezeichnet eine Art von Aufrufer, nie einen einzelnen Benutzer.
  */
 public enum ActorType {
     PRIVATE_CUSTOMER,
     BUSINESS_CUSTOMER,
     EXTERNAL_ERP,
-    /** The inbound adapter could not classify the caller. */
+    /** Der eingehende Adapter konnte den Aufrufer nicht einordnen. */
     UNKNOWN
 }

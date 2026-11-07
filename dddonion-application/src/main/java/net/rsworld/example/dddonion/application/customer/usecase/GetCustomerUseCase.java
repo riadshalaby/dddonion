@@ -6,7 +6,7 @@ import net.rsworld.example.dddonion.domain.customer.model.Customer;
 import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
 import reactor.core.publisher.Mono;
 
-/** Query use case: resolves a customer by id. An empty result signals "not found". */
+/** Query-Use-Case: liefert einen Customer zur Id. Ein leeres Ergebnis bedeutet „nicht gefunden“. */
 @UseCase(name = "customer.get", kind = UseCase.Kind.QUERY)
 public interface GetCustomerUseCase {
     Mono<Customer> findById(CustomerId id, UseCaseMetadata metadata);

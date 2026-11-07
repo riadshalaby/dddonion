@@ -4,9 +4,9 @@ import io.micrometer.context.ContextRegistry;
 import org.slf4j.MDC;
 
 /**
- * Bridges the use-case keys from the Reactor context into the SLF4J MDC. Together with
- * {@code spring.reactor.context-propagation=auto} every log line inside a use case carries them, regardless of the
- * thread Reactor runs on.
+ * Überträgt die Use-Case-Schlüssel aus dem Reactor-Context in den SLF4J-MDC. Zusammen mit
+ * {@code spring.reactor.context-propagation=auto} trägt jede Logzeile innerhalb eines Use Cases sie, egal auf welchem
+ * Thread Reactor läuft.
  */
 public final class UseCaseMdc {
 

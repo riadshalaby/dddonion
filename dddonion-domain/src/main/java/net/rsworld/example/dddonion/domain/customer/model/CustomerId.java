@@ -4,15 +4,15 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
- * Identity of a {@link Customer}. Self-validating value object: a {@code CustomerId} can only ever exist in canonical
- * UUID form, so this rule lives in exactly one place. The same format is mirrored in the OpenAPI contract (schema
- * {@code CustomerId}); the value-based drift test guards that both stay in sync.
+ * Identität eines {@link Customer}. Selbstvalidierendes Value Object: Eine {@code CustomerId} existiert nur in
+ * kanonischer UUID-Form, daher steht diese Regel an genau einer Stelle. Dasselbe Format spiegelt der OpenAPI-Vertrag
+ * (Schema {@code CustomerId}); der wertbasierte Drift-Test stellt sicher, dass beide synchron bleiben.
  */
 public record CustomerId(String value) {
 
     /**
-     * Canonical UUID (8-4-4-4-12 hex groups), case-insensitive. Kept intentionally strict: {@link UUID#fromString} is
-     * too lenient and would accept malformed inputs such as {@code "1-1-1-1-1"}.
+     * Kanonische UUID (Hex-Gruppen 8-4-4-4-12), Groß-/Kleinschreibung egal. Bewusst streng: {@link UUID#fromString} ist
+     * zu nachsichtig und würde fehlerhafte Eingaben wie {@code "1-1-1-1-1"} akzeptieren.
      */
     public static final Pattern PATTERN =
             Pattern.compile("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");

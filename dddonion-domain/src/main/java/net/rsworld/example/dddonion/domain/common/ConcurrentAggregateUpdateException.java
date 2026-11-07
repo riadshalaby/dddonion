@@ -1,6 +1,6 @@
 package net.rsworld.example.dddonion.domain.common;
 
-/** Signals that an aggregate was modified concurrently (optimistic-locking conflict). */
+/** Zeigt an, dass ein Aggregate nebenläufig geändert wurde (Optimistic-Locking-Konflikt). */
 public class ConcurrentAggregateUpdateException extends RuntimeException {
 
     public ConcurrentAggregateUpdateException(String aggregateType, String id) {

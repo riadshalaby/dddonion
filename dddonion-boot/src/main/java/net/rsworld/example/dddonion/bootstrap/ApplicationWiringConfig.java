@@ -6,7 +6,7 @@ import org.springframework.context.annotation.ComponentScan.Filter;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 
-/** Registers the application services; the application module itself stays free of Spring stereotypes. */
+/** Registriert die Application Services; das Application-Modul selbst bleibt frei von Spring-Stereotypen. */
 @Configuration
 @ComponentScan(
         basePackages = "net.rsworld.example.dddonion.application",

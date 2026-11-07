@@ -10,7 +10,9 @@ import org.springframework.transaction.reactive.TransactionalOperator;
 @Configuration
 public class UseCasePipelineConfig {
 
-    /** Static, so this post-processor is created without initializing the configuration class early. */
+    /**
+     * Statisch, damit dieser Post-Processor erzeugt wird, ohne die Konfigurationsklasse vorzeitig zu initialisieren.
+     */
     @Bean
     public static UseCasePipelinePostProcessor useCasePipelinePostProcessor(
             ObjectProvider<ObservationRegistry> registry,

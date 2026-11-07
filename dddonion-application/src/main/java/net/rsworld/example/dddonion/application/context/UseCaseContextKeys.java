@@ -1,8 +1,9 @@
 package net.rsworld.example.dddonion.application.context;
 
 /**
- * Keys under which the use case invocation context is exposed (Reactor context and SLF4J MDC). Inbound adapters that
- * run outside a use case, e.g. event listeners, read the caller's context from the MDC with these keys.
+ * Schlüssel, unter denen der Kontext eines Use-Case-Aufrufs bereitsteht (Reactor-Context und SLF4J-MDC). Eingehende
+ * Adapter, die außerhalb eines Use Cases laufen, z. B. Event-Listener, lesen den Kontext des Aufrufers mit diesen
+ * Schlüsseln aus dem MDC.
  */
 public final class UseCaseContextKeys {
 

@@ -141,7 +141,7 @@ class CustomerCreditIT {
         assertThat(openAmount(customerId)).isEqualByComparingTo("60");
     }
 
-    /** Places {@code count} orders truly in parallel: every thread waits at a start gate before sending. */
+    /** Platziert {@code count} Orders wirklich parallel: Jeder Thread wartet vor dem Senden an einem Startgatter. */
     private List<Integer> placeOrdersConcurrently(String customerId, int count, String total) throws Exception {
         var pool = Executors.newFixedThreadPool(count);
         try {
@@ -180,7 +180,8 @@ class CustomerCreditIT {
 
         List<Integer> statuses = placeOrdersConcurrently(customerId, 5, "30");
 
-        // how many requests win, lose the version race (409) or hit the limit (422) is timing dependent
+        // wie viele Requests gewinnen, das Versionsrennen verlieren (409) oder ans Limit stoßen (422), hängt vom Timing
+        // ab
         assertThat(statuses).isSubsetOf(201, 409, 422);
         long accepted = statuses.stream().filter(status -> status == 201).count();
         assertThat(accepted).isBetween(1L, 3L);

@@ -29,7 +29,7 @@ class UseCaseObservabilityTest {
 
     private static final UseCaseMetadata META = new UseCaseMetadata(ActorType.BUSINESS_CUSTOMER, "rest", "corr-42");
 
-    /** Sample use case shaped like the real ones. */
+    /** Beispiel-Use-Case, aufgebaut wie die echten. */
     @UseCase(name = "thing.place", kind = UseCase.Kind.COMMAND)
     interface PlaceThingUseCase {
         Mono<String> handle(String cmd, UseCaseMetadata metadata);
@@ -95,7 +95,7 @@ class UseCaseObservabilityTest {
     @BeforeAll
     static void enableContextPropagation() {
         UseCaseMdc.register(ContextRegistry.getInstance());
-        Hooks.enableAutomaticContextPropagation(); // what spring.reactor.context-propagation=auto does
+        Hooks.enableAutomaticContextPropagation(); // das, was spring.reactor.context-propagation=auto macht
     }
 
     @AfterAll
@@ -268,7 +268,7 @@ class UseCaseObservabilityTest {
         PlaceThingUseCase throwing = UseCaseObservability.wrap(
                 PlaceThingUseCase.class,
                 (cmd, meta) -> {
-                    throw boom; // eager failure before a Mono exists
+                    throw boom; // frühes Scheitern, bevor ein Mono existiert
                 },
                 throwingRegistry);
 
@@ -307,7 +307,7 @@ class UseCaseObservabilityTest {
         PlaceThingUseCase target = (cmd, meta) -> Mono.just(cmd)
                 .publishOn(Schedulers.parallel())
                 .doOnNext(c -> onReactorThread.set(MDC.getCopyOfContextMap()))
-                // like PlaceOrderService -> ApplicationEventPublisher -> @Async listener
+                // wie PlaceOrderService -> ApplicationEventPublisher -> @Async-Listener
                 .flatMap(c -> Mono.fromCallable(() -> async.submit(() -> onAsyncExecutor.set(MDC.getCopyOfContextMap()))
                                 .get())
                         .thenReturn(c));

@@ -3,16 +3,16 @@ package net.rsworld.example.dddonion.domain.customer.model;
 import java.util.regex.Pattern;
 
 /**
- * Customer's e-mail address as a self-validating value object. This is the single source of truth for e-mail validity
- * inside the domain; the OpenAPI schema {@code CustomerEmail} mirrors the same {@code maxLength}/{@code pattern} for
- * boundary validation, guarded by the value-based drift test.
+ * E-Mail-Adresse eines Customers als selbstvalidierendes Value Object. Innerhalb der Domain ist sie die einzige Quelle
+ * der Wahrheit für gültige E-Mails; das OpenAPI-Schema {@code CustomerEmail} spiegelt dieselben
+ * {@code maxLength}/{@code pattern} für die Validierung am Rand, abgesichert durch den wertbasierten Drift-Test.
  */
 public record CustomerEmail(String value) {
 
-    /** Upper bound per RFC 5321; also mirrored as {@code maxLength} in the OpenAPI contract. */
+    /** Obergrenze nach RFC 5321; im OpenAPI-Vertrag ebenfalls als {@code maxLength} gespiegelt. */
     public static final int MAX_LENGTH = 254;
 
-    /** Strict pattern: no leading/trailing dots in the local part, requires a real TLD. */
+    /** Strenges Pattern: keine Punkte am Anfang oder Ende des lokalen Teils, verlangt eine echte TLD. */
     public static final Pattern PATTERN = Pattern.compile(
             "^[A-Za-z0-9][A-Za-z0-9+._-]*[A-Za-z0-9]@[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*\\.[A-Za-z]{2,}$|^[A-Za-z0-9]@[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)*\\.[A-Za-z]{2,}$");
 

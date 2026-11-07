@@ -16,9 +16,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Application-Service: orchestrates Domain + Ports. Runs as one transaction: the credit is reserved on the customer and
- * the order is created. The customer is saved first so that a version conflict surfaces before the order insert; the
- * pipeline then retries the whole chain. The order is built inside the chain so that every attempt gets a new id.
+ * Application Service: orchestriert Domain und Ports. Läuft als eine Transaktion: Der Kredit wird beim Customer
+ * reserviert und die Order angelegt. Der Customer wird zuerst gespeichert, damit ein Versionskonflikt vor dem Insert
+ * der Order auffällt; die Pipeline wiederholt dann die ganze Kette. Die Order wird innerhalb der Kette gebaut, damit
+ * jeder Versuch eine neue Id bekommt.
  */
 @Slf4j
 @TransactionalUseCase
@@ -49,7 +50,7 @@ class PlaceOrderService implements PlaceOrderUseCase {
                             .then(Mono.defer(() -> orders.save(order)))
                             .then(publishEvents(order));
                 })
-                // log only the id: keep customer data out of the log; the commit is not observable here
+                // nur die Id loggen: Customer-Daten bleiben aus dem Log; der Commit ist hier nicht beobachtbar
                 .doOnNext(id -> log.info("Order {} saved, awaiting commit", id.value()));
     }
 

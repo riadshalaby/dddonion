@@ -14,7 +14,7 @@ public class DomainEventLoggingListener {
     @EventListener
     public void onDomainEvent(DomainEvent event) {
         try {
-            // artificial delay to demonstrate asynchronous execution
+            // künstliche Verzögerung, um die asynchrone Ausführung zu zeigen
             Thread.sleep(2000);
             log.info(
                     "DomainEvent received: type={}, aggregateId={}, sequence={}, occurredAt={}",

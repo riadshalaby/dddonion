@@ -26,10 +26,13 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.validation.beanvalidation.MethodValidationInterceptor;
 import reactor.core.publisher.Mono;
 
-/** WebFlux slice test for OrderController. Uses WebTestClient bound to the controller with a mocked UseCase. */
+/**
+ * WebFlux-Slice-Test für OrderController. Nutzt einen an den Controller gebundenen WebTestClient mit gemocktem Use
+ * Case.
+ */
 class OrderControllerTest {
 
-    // OrderId now enforces canonical UUID form, so tests must use real UUIDs.
+    // OrderId erzwingt die kanonische UUID-Form, daher brauchen die Tests echte UUIDs.
     private static final String ID = "3f6a9c1e-4b2d-4f0a-9c7e-8a1b2c3d4e5f";
     private static final String ID_2 = "7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
     private static final String CUSTOMER = "11111111-2222-4333-8444-555555555555";
@@ -42,7 +45,8 @@ class OrderControllerTest {
     void setUp() {
         placeOrderUseCase = mock(PlaceOrderUseCase.class);
         getOrderUseCase = mock(GetOrderUseCase.class);
-        // Mirror the application context: @Validated on the generated interface triggers method validation via a proxy.
+        // Wie im Application Context: @Validated auf dem generierten Interface löst die Method Validation über einen
+        // Proxy aus.
         ProxyFactory proxy = new ProxyFactory(new OrderController(placeOrderUseCase, getOrderUseCase));
         proxy.setProxyTargetClass(true);
         proxy.addAdvice(new MethodValidationInterceptor());
@@ -54,12 +58,12 @@ class OrderControllerTest {
     @Test
     @DisplayName("POST /orders returns 201 with created OrderId as JSON when the body is valid")
     void createReturnsOrderId() {
-        // Arrange
+        // Vorbereiten
         BigDecimal total = new BigDecimal("12.34");
         OrderId returnedId = new OrderId(ID);
         when(placeOrderUseCase.handle(any(PlaceOrderCommand.class), any())).thenReturn(Mono.just(returnedId));
 
-        // Act + Assert
+        // Ausführen + Prüfen
         webTestClient
                 .post()
                 .uri("/orders")
@@ -76,7 +80,7 @@ class OrderControllerTest {
                 .jsonPath("$.orderId")
                 .isEqualTo(ID);
 
-        // Verify correct command (built from value objects) passed to the use case
+        // Prüfen, dass der richtige Command (aus Value Objects gebaut) beim Use Case ankommt
         ArgumentCaptor<PlaceOrderCommand> cmdCaptor = ArgumentCaptor.forClass(PlaceOrderCommand.class);
         verify(placeOrderUseCase, times(1)).handle(cmdCaptor.capture(), any());
         PlaceOrderCommand usedCmd = cmdCaptor.getValue();

@@ -22,7 +22,7 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
-    <!-- Use-case observability: Reactor context -> MDC bridge, MDC onto async listener threads, Prometheus scrape endpoint -->
+    <!-- Use-Case-Observability: Brücke Reactor-Context -> MDC, MDC auf asynchrone Listener-Threads, Prometheus-Scrape-Endpunkt -->
     <dependency>
       <groupId>io.micrometer</groupId>
       <artifactId>context-propagation</artifactId>
@@ -63,7 +63,7 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-r2dbc</artifactId>
     </dependency>
-    <!-- Swagger UI static assets, served against the authored /openapi.yaml (design-first; no code scanning) -->
+    <!-- Statische Swagger-UI-Assets, ausgeliefert gegen das handgeschriebene /openapi.yaml (design-first; kein Code-Scanning) -->
     <dependency>
       <groupId>org.webjars</groupId>
       <artifactId>swagger-ui</artifactId>
@@ -81,7 +81,7 @@
       <artifactId>r2dbc-mariadb</artifactId>
       <version>${mariadb-r2dbc.version}</version>
     </dependency>
-    <!-- Liquibase + JDBC for migrations -->
+    <!-- Liquibase + JDBC für Migrationen -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-liquibase</artifactId>

@@ -6,8 +6,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Serves the authored OpenAPI contract at runtime so tooling (and Swagger UI) can load it. The same
- * {@code openapi/api.yaml} that drives code generation is exposed verbatim, keeping a single source of truth.
+ * Liefert den handgeschriebenen OpenAPI-Vertrag zur Laufzeit aus, damit Werkzeuge (und Swagger UI) ihn laden können. Es
+ * ist dieselbe {@code openapi/api.yaml}, aus der der Code generiert wird, unverändert ausgeliefert; so bleibt es bei
+ * einer Single Source of Truth.
  */
 @RestController
 public class OpenApiSpecController {

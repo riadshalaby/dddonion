@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-/** REST adapter implementing the {@link CustomersApi} interface generated from {@code openapi/api.yaml}. */
+/** REST-Adapter, der das aus {@code openapi/api.yaml} generierte Interface {@link CustomersApi} implementiert. */
 @RestController
 public class CustomerController implements CustomersApi {
 

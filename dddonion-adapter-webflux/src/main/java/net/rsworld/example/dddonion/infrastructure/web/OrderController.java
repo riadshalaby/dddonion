@@ -20,8 +20,8 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * REST adapter implementing the {@link OrdersApi} interface generated from {@code src/main/resources/openapi/api.yaml}
- * (the design-first contract).
+ * REST-Adapter, der das aus {@code src/main/resources/openapi/api.yaml} (dem Design-first-Vertrag) generierte Interface
+ * {@link OrdersApi} implementiert.
  */
 @RestController
 public class OrderController implements OrdersApi {

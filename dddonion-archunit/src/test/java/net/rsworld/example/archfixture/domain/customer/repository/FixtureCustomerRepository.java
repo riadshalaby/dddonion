@@ -1,6 +1,6 @@
 package net.rsworld.example.archfixture.domain.customer.repository;
 
-/** Fixture: stands in for a foreign aggregate's repository port. */
+/** Fixture: steht für den Repository-Port eines fremden Aggregates. */
 public interface FixtureCustomerRepository {
     void save(Object customer);
 

@@ -9,7 +9,9 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.EvaluationResult;
 import org.junit.jupiter.api.Test;
 
-/** Negative tests: prove the aggregate boundary rules detect violations in fixtures outside the main import. */
+/**
+ * Negativtests: belegen, dass die Regeln zu Aggregate-Grenzen Verstöße in Fixtures außerhalb des Hauptimports erkennen.
+ */
 class AggregateWriteRuleTest {
 
     private static final JavaClasses FIXTURES =

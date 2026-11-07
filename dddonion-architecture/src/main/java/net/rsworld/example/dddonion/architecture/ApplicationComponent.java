@@ -6,7 +6,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/** Marks an application-layer class that the bootstrap module registers as a bean (Spring-free marker). */
+/**
+ * Markiert eine Klasse der Application-Schicht, die das Bootstrap-Modul als Bean registriert (Spring-freier Marker).
+ */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented

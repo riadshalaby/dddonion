@@ -3,7 +3,7 @@ package net.rsworld.example.archfixture.application.order.service;
 import net.rsworld.example.archfixture.domain.customer.repository.FixtureCustomerRepository;
 import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 
-/** Fixture: allowed, a service annotated with {@code @TransactionalUseCase} may write through repositories. */
+/** Fixture: erlaubt, ein Service mit {@code @TransactionalUseCase} darf über Repositories schreiben. */
 @TransactionalUseCase
 class TransactionalWriter {
     private final FixtureCustomerRepository customers;

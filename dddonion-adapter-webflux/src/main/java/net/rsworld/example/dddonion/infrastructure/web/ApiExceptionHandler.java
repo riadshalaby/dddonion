@@ -12,20 +12,21 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * Translates domain/application failures into RFC 7807 {@code application/problem+json} responses, as declared in the
- * OpenAPI contract.
+ * Übersetzt Fehler aus Domain und Application in RFC-7807-Antworten {@code application/problem+json}, wie im
+ * OpenAPI-Vertrag deklariert.
  *
- * <p>Mappings:
+ * <p>Zuordnungen:
  *
  * <ul>
- *   <li>{@code 400}: {@link IllegalArgumentException} (validation inside domain commands and value objects) and
- *       {@link ConstraintViolationException} (non-body parameters such as {@code X-Correlation-Id}). Bean-validation
- *       failures on request DTOs are turned into {@code 400} by Spring itself
+ *   <li>{@code 400}: {@link IllegalArgumentException} (Validierung in Domain-Commands und Value Objects) und
+ *       {@link ConstraintViolationException} (Parameter außerhalb des Bodys wie {@code X-Correlation-Id}).
+ *       Bean-Validation-Fehler auf Request-DTOs macht Spring selbst zu {@code 400}
  *       ({@code spring.webflux.problemdetails.enabled=true}).
  *   <li>{@code 404}: {@link OrderNotFoundException}, {@link CustomerNotFoundException}.
- *   <li>{@code 409}: {@link EmailAlreadyRegisteredException} (duplicate e-mail) and
- *       {@link ConcurrentAggregateUpdateException} (optimistic-locking retries exhausted; the client may retry).
- *   <li>{@code 422}: {@link UnknownCustomerException} (order for an unknown customer) and
+ *   <li>{@code 409}: {@link EmailAlreadyRegisteredException} (doppelte E-Mail) und
+ *       {@link ConcurrentAggregateUpdateException} (Optimistic-Locking-Retries erschöpft; der Client darf es erneut
+ *       versuchen).
+ *   <li>{@code 422}: {@link UnknownCustomerException} (Order für einen unbekannten Customer) und
  *       {@link CreditLimitExceededException}.
  * </ul>
  */
@@ -40,8 +41,8 @@ public class ApiExceptionHandler {
     }
 
     /**
-     * Constraint violations on non-body parameters (e.g. the {@code X-Correlation-Id} pattern) are raised by the
-     * {@code @Validated} method-validation proxy and would otherwise surface as 500.
+     * Constraint-Verletzungen auf Parametern außerhalb des Bodys (z. B. das Pattern von {@code X-Correlation-Id}) wirft
+     * der Method-Validation-Proxy von {@code @Validated}; ohne diesen Handler kämen sie als 500 an.
      */
     @ExceptionHandler(ConstraintViolationException.class)
     public ProblemDetail handleConstraintViolation(ConstraintViolationException ex) {
@@ -78,7 +79,7 @@ public class ApiExceptionHandler {
         return problem;
     }
 
-    /** Optimistic-locking retries were exhausted; the client may simply retry. */
+    /** Die Optimistic-Locking-Retries sind erschöpft; der Client kann es einfach erneut versuchen. */
     @ExceptionHandler(ConcurrentAggregateUpdateException.class)
     public ProblemDetail handleConcurrentUpdate(ConcurrentAggregateUpdateException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

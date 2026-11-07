@@ -4,7 +4,10 @@ import net.rsworld.example.dddonion.domain.customer.model.Customer;
 import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
 import reactor.core.publisher.Mono;
 
-/** Domain-Port: reactive and lazy, work starts on subscription. Not-Found is signaled by an empty {@link Mono}. */
+/**
+ * Domain-Port: reaktiv und lazy, die Arbeit beginnt erst mit der Subscription. „Nicht gefunden“ wird durch einen leeren
+ * {@link Mono} signalisiert.
+ */
 public interface CustomerRepository {
 
     Mono<Customer> save(Customer customer);

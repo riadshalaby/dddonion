@@ -32,7 +32,7 @@ class DomainEventLoggingListenerTest {
     @Test
     @DisplayName("Schreibt beim Empfang eines DomainEvents alle relevanten Felder ins Log")
     void onDomainEvent_logsExpectedFields() {
-        // route logger output of the class under test to an in-memory stream
+        // Logger-Ausgabe der getesteten Klasse in einen In-Memory-Stream umleiten
         LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();
         Logger logger = (Logger) LoggerFactory.getLogger(DomainEventLoggingListener.class);
         logger.setLevel(Level.INFO);

@@ -9,16 +9,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
- * Executor for all asynchronous event listeners (monitor and inbound event adapters). It lives in the composition root
- * because several modules rely on it; removing one of them must not switch off async processing for the others.
+ * Executor für alle asynchronen Event-Listener (Monitor und eingehende Event-Adapter). Er liegt in der Composition
+ * Root, weil mehrere Module ihn brauchen; fällt eines davon weg, darf das die asynchrone Verarbeitung für die anderen
+ * nicht abschalten.
  */
 @Configuration
 @EnableAsync
 public class AsyncConfig {
     @Bean(name = "applicationTaskExecutor")
     public Executor applicationTaskExecutor() {
-        // Virtual-thread per task executor; the wrapper snapshots the submitting thread's ThreadLocals (e.g. MDC)
-        // so async listeners log within the context of the use case that published the event.
+        // Executor mit einem virtuellen Thread pro Task; der Wrapper übernimmt die ThreadLocals (z. B. MDC) des
+        // einreichenden Threads, damit asynchrone Listener im Kontext des Use Cases loggen, der das Event publiziert
+        // hat.
         return ContextExecutorService.wrap(
                 Executors.newThreadPerTaskExecutor(
                         Thread.ofVirtual().name("vt-events-", 0).factory()),

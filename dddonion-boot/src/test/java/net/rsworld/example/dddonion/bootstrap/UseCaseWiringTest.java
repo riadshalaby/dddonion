@@ -20,7 +20,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import org.springframework.util.ClassUtils;
 
-/** Guards against a use case bean escaping the observability decorator (and thus the audit). */
+/** Schützt davor, dass ein Use-Case-Bean dem Observability-Decorator (und damit dem Audit) entgeht. */
 class UseCaseWiringTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()

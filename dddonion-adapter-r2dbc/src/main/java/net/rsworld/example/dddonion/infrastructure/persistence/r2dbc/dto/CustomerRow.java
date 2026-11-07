@@ -30,13 +30,13 @@ public class CustomerRow {
     private BigDecimal openAmount;
 
     @Version
-    private Long version; // Spring Data R2DBC uses this for optimistic locking
+    private Long version; // Spring Data R2DBC nutzt das für Optimistic Locking
 
-    @ReadOnlyProperty // managed by DB defaults, never written by Spring Data
+    @ReadOnlyProperty // von DB-Defaults verwaltet, nie von Spring Data geschrieben
     @Column("created_at")
     private LocalDateTime createdAt;
 
-    @ReadOnlyProperty // managed by DB (ON UPDATE CURRENT_TIMESTAMP)
+    @ReadOnlyProperty // von der DB verwaltet (ON UPDATE CURRENT_TIMESTAMP)
     @Column("updated_at")
     private LocalDateTime updatedAt;
 }

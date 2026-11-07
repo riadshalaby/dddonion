@@ -245,7 +245,7 @@ paths:
                 $ref: '#/components/schemas/ProblemDetail'
 components:
   parameters:
-    # --- Use-case metadata: who (classified) triggers a use case, correlated across logs and events. ---
+    # --- Use-Case-Metadaten: wer (klassifiziert) einen Use Case auslöst, korreliert über Logs und Events. ---
     ActorTypeHeader:
       name: X-Actor-Type
       in: header
@@ -283,8 +283,8 @@ components:
       pattern: '^[A-Za-z0-9._:-]+$'
       description: Restricted charset keeps the value safe to write into logs.
       example: 7d1c2b3a-checkout-42
-    # --- Reusable, self-contained scalar types (single source of truth on the wire). ---
-    # Each mirrors a domain value object; the value-based drift test asserts they agree.
+    # --- Wiederverwendbare, eigenständige Skalartypen (Single Source of Truth für die Übertragung). ---
+    # Jeder spiegelt ein Value Object der Domain; der wertbasierte Drift-Test prüft, dass beide übereinstimmen.
     OrderId:
       type: string
       minLength: 36

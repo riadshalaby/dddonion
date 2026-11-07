@@ -2,7 +2,7 @@ package net.rsworld.example.archfixture.infrastructure.web;
 
 import net.rsworld.example.archfixture.domain.customer.repository.FixtureCustomerRepository;
 
-/** Fixture: violation, an inbound web adapter reading a repository instead of calling a use case. */
+/** Fixture: Verstoß, ein eingehender Web-Adapter liest ein Repository, statt einen Use Case aufzurufen. */
 class FixtureRepositoryController {
     private final FixtureCustomerRepository customers;
 

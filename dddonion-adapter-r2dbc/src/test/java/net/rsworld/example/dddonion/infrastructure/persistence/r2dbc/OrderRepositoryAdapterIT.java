@@ -82,7 +82,7 @@ class OrderRepositoryAdapterIT {
     @DisplayName("Speichert eine platzierte Order und liest sie anschließend über findById wieder ein")
     void saveAndFind() {
         var o = new Order(CustomerId.newId(), new Money(new BigDecimal("12.34")));
-        o.place(); // domain transition first, then persist – mirrors production flow
+        o.place(); // erst der Domain-Übergang, dann das Speichern – wie im Produktivablauf
 
         StepVerifier.create(adapter.save(o)
                         .then(adapter.findById(o.id()))

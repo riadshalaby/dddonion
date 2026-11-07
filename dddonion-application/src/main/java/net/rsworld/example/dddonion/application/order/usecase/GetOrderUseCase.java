@@ -6,7 +6,7 @@ import net.rsworld.example.dddonion.domain.order.model.Order;
 import net.rsworld.example.dddonion.domain.order.model.OrderId;
 import reactor.core.publisher.Mono;
 
-/** Query use case: resolves an order by id. An empty result signals "not found". */
+/** Query-Use-Case: liefert eine Order zur Id. Ein leeres Ergebnis bedeutet „nicht gefunden“. */
 @UseCase(name = "order.get", kind = UseCase.Kind.QUERY)
 public interface GetOrderUseCase {
     Mono<Order> findById(OrderId id, UseCaseMetadata metadata);

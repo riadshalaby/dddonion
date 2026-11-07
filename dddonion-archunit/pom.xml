@@ -10,7 +10,7 @@
   <packaging>jar</packaging>
 
   <dependencies>
-    <!-- Analyze compiled classes from modules under test -->
+    <!-- Kompilierte Klassen der geprüften Module analysieren -->
     <dependency>
       <groupId>net.rsworld.example.dddonion</groupId>
       <artifactId>dddonion-domain</artifactId>

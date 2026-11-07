@@ -30,8 +30,8 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 /**
- * Runs a {@link TransactionalUseCase} through the real pipeline against MariaDB: a failing use case leaves no write,
- * neither for the customer nor for the order.
+ * Führt einen {@link TransactionalUseCase} durch die echte Pipeline gegen MariaDB aus: Ein scheiternder Use Case
+ * hinterlässt keinen Schreibvorgang, weder beim Customer noch bei der Order.
  */
 @Testcontainers
 @Import(TransactionalUseCaseIT.TestUseCaseConfig.class)
@@ -65,7 +65,7 @@ class TransactionalUseCaseIT {
         Mono<Void> handle(Customer customer, Order order, boolean failAfterSave, UseCaseMetadata metadata);
     }
 
-    /** Writes through both adapters, so a write outside the transaction would survive the rollback. */
+    /** Schreibt über beide Adapter, daher würde ein Schreiben außerhalb der Transaktion den Rollback überleben. */
     @TransactionalUseCase
     static class SaveCustomerAndOrderService implements SaveCustomerAndOrderUseCase {
         private final CustomerRepository customers;

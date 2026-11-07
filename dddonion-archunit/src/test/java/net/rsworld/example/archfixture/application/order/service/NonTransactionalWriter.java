@@ -4,7 +4,7 @@ import java.util.function.Consumer;
 import net.rsworld.example.archfixture.domain.customer.repository.FixtureCustomerRepository;
 import net.rsworld.example.archfixture.domain.order.repository.FixtureOrderRepository;
 
-/** Fixture: a service without {@code @TransactionalUseCase} that writes through repositories and reads. */
+/** Fixture: ein Service ohne {@code @TransactionalUseCase}, der über Repositories schreibt und liest. */
 class NonTransactionalWriter {
     private final FixtureCustomerRepository customers;
     private final FixtureOrderRepository orders;
@@ -14,27 +14,27 @@ class NonTransactionalWriter {
         this.orders = orders;
     }
 
-    /** Violation: direct write call outside a transactional use case. */
+    /** Verstoß: direkter Schreibaufruf außerhalb eines transaktionalen Use Cases. */
     void writesViaCall(Object customer) {
         customers.save(customer);
     }
 
-    /** Violation: write through a method reference. */
+    /** Verstoß: Schreiben über eine Methodenreferenz. */
     Consumer<Object> writesViaMethodReference() {
         return customers::save;
     }
 
-    /** Violation: non-save write outside a transactional use case. */
+    /** Verstoß: Schreiben ohne save außerhalb eines transaktionalen Use Cases. */
     void deletesForeign(Object customer) {
         customers.delete(customer);
     }
 
-    /** Allowed: reads need no transaction. */
+    /** Erlaubt: Lesen braucht keine Transaktion. */
     Object readsForeign(String id) {
         return customers.findById(id);
     }
 
-    /** Violation: write to the own aggregate is also a write outside a transaction. */
+    /** Verstoß: Auch Schreiben auf das eigene Aggregate ist ein Schreiben außerhalb einer Transaktion. */
     void writesOwn(Object order) {
         orders.save(order);
     }

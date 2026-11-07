@@ -14,8 +14,8 @@ public class Order {
     private OrderStatus status;
     private final CustomerId customerId;
     private final Money total;
-    private long version; // domain version used as event sequence
-    private final long loadedVersion; // version this instance was created or reconstituted with
+    private long version; // Domain-Version, dient als Event-Sequenz
+    private final long loadedVersion; // Version, mit der diese Instanz erzeugt oder wiederhergestellt wurde
     private final List<DomainEvent> pendingEvents = new ArrayList<>();
 
     public Order(CustomerId customerId, Money total) {
@@ -60,9 +60,9 @@ public class Order {
     }
 
     /**
-     * Version this instance was created or reconstituted with, before any transition applied to it. Persistence uses it
-     * as the optimistic-lock expectation: the stored row must still carry this version, otherwise another writer has
-     * changed the order in the meantime.
+     * Version, mit der diese Instanz erzeugt oder wiederhergestellt wurde, vor jedem darauf angewandten Übergang. Die
+     * Persistenz nutzt sie als Erwartung für das Optimistic Locking: Die gespeicherte Zeile muss noch diese Version
+     * tragen, sonst hat ein anderer Schreiber die Order inzwischen geändert.
      */
     public long loadedVersion() {
         return loadedVersion;
