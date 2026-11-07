@@ -7,8 +7,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks the service class of a {@link UseCase.Kind#COMMAND} use case that must run in one transaction (Spring-free
- * marker). The bootstrap module wraps each invocation in a transaction and retries it on a concurrent aggregate update.
+ * Markiert die Service-Klasse eines {@link UseCase.Kind#COMMAND}-Use-Cases, der in einer Transaktion laufen muss
+ * (Spring-freier Marker). Das Bootstrap-Modul hüllt jeden Aufruf in eine Transaktion und wiederholt ihn bei einem
+ * nebenläufigen Aggregate-Update.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)

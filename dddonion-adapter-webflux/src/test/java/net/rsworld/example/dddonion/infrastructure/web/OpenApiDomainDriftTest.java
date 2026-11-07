@@ -22,19 +22,20 @@ import org.junit.jupiter.api.TestFactory;
 import org.yaml.snakeyaml.Yaml;
 
 /**
- * Value-based drift guard between the domain value objects and the OpenAPI contract.
+ * Wertbasierter Drift-Schutz zwischen den Value Objects der Domain und dem OpenAPI-Vertrag.
  *
- * <p>Rather than comparing regex <em>strings</em> (brittle and cosmetic), it runs a set of concrete sample values
- * through BOTH sides and asserts each side classifies every value as the hand-labelled expectation:
+ * <p>Statt Regex-<em>Strings</em> zu vergleichen (fragil und kosmetisch), schickt er eine Reihe konkreter Beispielwerte
+ * durch BEIDE Seiten und prüft, dass jede Seite jeden Wert so einstuft wie die von Hand gesetzte Erwartung:
  *
  * <ul>
- *   <li><b>domain side</b> — the real value-object constructor (accepts, or throws {@link IllegalArgumentException});
- *   <li><b>wire side</b> — the constraints ({@code pattern} / {@code minLength} / {@code maxLength} / {@code minimum})
- *       parsed from {@code openapi/api.yaml}.
+ *   <li><b>Domain-Seite</b> — der echte Konstruktor des Value Objects (akzeptiert oder wirft
+ *       {@link IllegalArgumentException});
+ *   <li><b>Übertragungsseite</b> — die Constraints ({@code pattern} / {@code minLength} / {@code maxLength} /
+ *       {@code minimum}), gelesen aus {@code openapi/api.yaml}.
  * </ul>
  *
- * If either side is changed without the other, some sample value is classified differently and this test fails. Adding
- * a new shared value object costs one row in {@link #sharedTypes()}, not one test per property.
+ * Wird eine Seite ohne die andere geändert, stuft der Test einen Beispielwert unterschiedlich ein und schlägt fehl. Ein
+ * neues gemeinsames Value Object kostet eine Zeile in {@link #sharedTypes()}, nicht einen Test pro Eigenschaft.
  */
 class OpenApiDomainDriftTest {
 
@@ -80,23 +81,23 @@ class OpenApiDomainDriftTest {
                         v -> new OrderId((String) v),
                         List.of(
                                 valid(UUID.randomUUID().toString()),
-                                valid("3F6A9C1E-4B2D-4F0A-9C7E-8A1B2C3D4E5F"), // upper-case hex
+                                valid("3F6A9C1E-4B2D-4F0A-9C7E-8A1B2C3D4E5F"), // Hex in Großbuchstaben
                                 invalid(""),
                                 invalid("ORD-123"),
-                                invalid("3f6a9c1e4b2d4f0a9c7e8a1b2c3d4e5f"), // 32 chars, no dashes
-                                invalid("3f6a9c1e-4b2d-4f0a-9c7e-8a1b2c3d4e5"), // 35 chars
-                                invalid("z3f6a9c1-4b2d-4f0a-9c7e-8a1b2c3d4e5f"))), // non-hex character
+                                invalid("3f6a9c1e4b2d4f0a9c7e8a1b2c3d4e5f"), // 32 Zeichen, ohne Bindestriche
+                                invalid("3f6a9c1e-4b2d-4f0a-9c7e-8a1b2c3d4e5"), // 35 Zeichen
+                                invalid("z3f6a9c1-4b2d-4f0a-9c7e-8a1b2c3d4e5f"))), // kein Hex-Zeichen
                 new SharedType(
                         "CustomerId",
                         v -> new CustomerId((String) v),
                         List.of(
                                 valid(UUID.randomUUID().toString()),
-                                valid("3F6A9C1E-4B2D-4F0A-9C7E-8A1B2C3D4E5F"), // upper-case hex
+                                valid("3F6A9C1E-4B2D-4F0A-9C7E-8A1B2C3D4E5F"), // Hex in Großbuchstaben
                                 invalid(""),
                                 invalid("CUS-123"),
-                                invalid("3f6a9c1e4b2d4f0a9c7e8a1b2c3d4e5f"), // 32 chars, no dashes
-                                invalid("3f6a9c1e-4b2d-4f0a-9c7e-8a1b2c3d4e5"), // 35 chars
-                                invalid("z3f6a9c1-4b2d-4f0a-9c7e-8a1b2c3d4e5f"))), // non-hex character
+                                invalid("3f6a9c1e4b2d4f0a9c7e8a1b2c3d4e5f"), // 32 Zeichen, ohne Bindestriche
+                                invalid("3f6a9c1e-4b2d-4f0a-9c7e-8a1b2c3d4e5"), // 35 Zeichen
+                                invalid("z3f6a9c1-4b2d-4f0a-9c7e-8a1b2c3d4e5f"))), // kein Hex-Zeichen
                 new SharedType(
                         "CustomerEmail",
                         v -> new CustomerEmail((String) v),
@@ -170,7 +171,7 @@ class OpenApiDomainDriftTest {
         }
     }
 
-    /** Evaluates a single value against the JSON-Schema constraints declared for a component schema. */
+    /** Prüft einen einzelnen Wert gegen die JSON-Schema-Constraints, die für ein Component-Schema deklariert sind. */
     private static final class SchemaConstraints {
         private final String type;
         private final Integer minLength;
@@ -191,7 +192,7 @@ class OpenApiDomainDriftTest {
 
         boolean accepts(Object value) {
             if (value == null) {
-                return false; // presence is governed by `required`, not by these constraints
+                return false; // das Vorhandensein regelt `required`, nicht diese Constraints
             }
             return switch (type) {
                 case "string" -> acceptsString(value.toString());

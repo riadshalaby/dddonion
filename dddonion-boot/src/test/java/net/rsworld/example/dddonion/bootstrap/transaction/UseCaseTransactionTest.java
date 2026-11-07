@@ -21,7 +21,7 @@ import reactor.test.StepVerifier;
 
 class UseCaseTransactionTest {
 
-    /** Records the transaction lifecycle instead of talking to a database. */
+    /** Zeichnet den Transaktionsablauf auf, statt mit einer Datenbank zu sprechen. */
     static class RecordingTransactionManager extends AbstractReactiveTransactionManager {
         final List<String> events = new ArrayList<>();
 
@@ -83,7 +83,7 @@ class UseCaseTransactionTest {
             TransactionalOperator.create(manager), event -> manager.events.add(((TestEvent) event).name()));
     private final AtomicInteger calls = new AtomicInteger();
 
-    /** Counts subscriptions, like a service that is re-invoked per attempt. */
+    /** Zählt Subscriptions, wie ein Service, der pro Versuch neu aufgerufen wird. */
     private Mono<?> counting(java.util.function.Supplier<Mono<?>> body) {
         return Mono.defer(() -> {
             calls.incrementAndGet();

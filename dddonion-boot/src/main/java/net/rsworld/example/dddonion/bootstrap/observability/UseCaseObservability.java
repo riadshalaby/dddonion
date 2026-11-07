@@ -21,12 +21,12 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
 
 /**
- * Decorates a use case so that every invocation becomes one {@link Observation} named {@value #OBSERVATION_NAME} (→
- * timer metric + audit log line) and carries its {@link UseCaseMetadata} into the Reactor context (→ MDC).
+ * Dekoriert einen Use Case so, dass jeder Aufruf genau eine {@link Observation} namens {@value #OBSERVATION_NAME} wird
+ * (→ Timer-Metrik + Audit-Logzeile) und seine {@link UseCaseMetadata} in den Reactor-Context trägt (→ MDC).
  *
- * <p>Name and kind come from the {@link UseCase} annotation on the interface ({@code order.place}, {@code command}), so
- * they stay stable when the interface is renamed. Low-cardinality values become metric tags; the correlation id is
- * high-cardinality and therefore only reaches logs/spans.
+ * <p>Name und Art stammen aus der {@link UseCase}-Annotation am Interface ({@code order.place}, {@code command}), damit
+ * sie beim Umbenennen des Interfaces stabil bleiben. Werte mit geringer Kardinalität werden zu Metrik-Tags; die
+ * Correlation-ID hat hohe Kardinalität und landet daher nur in Logs/Spans.
  */
 public final class UseCaseObservability {
 
@@ -39,15 +39,16 @@ public final class UseCaseObservability {
     public static final String KEY_OUTCOME = "outcome";
     public static final String KEY_CORRELATION_ID = "correlation.id";
 
-    /** Reactor-context / MDC keys, bridged by {@link UseCaseMdc}. */
+    /** Schlüssel für Reactor-Context / MDC, übertragen von {@link UseCaseMdc}. */
     public static final String MDC_USECASE = UseCaseContextKeys.USECASE;
 
     public static final String MDC_ACTOR_TYPE = UseCaseContextKeys.ACTOR_TYPE;
     public static final String MDC_CORRELATION_ID = UseCaseContextKeys.CORRELATION_ID;
 
     /**
-     * Result of an invocation; {@code EMPTY} is a business signal for a value-returning use case, e.g. "order not
-     * found". A {@code Mono<Void>} use case never emits, so its normal completion is {@code SUCCESS}.
+     * Ergebnis eines Aufrufs; {@code EMPTY} ist ein fachliches Signal bei einem wertliefernden Use Case, z. B. „Order
+     * nicht gefunden“. Ein {@code Mono<Void>}-Use-Case emittiert nie, daher ist sein normaler Abschluss
+     * {@code SUCCESS}.
      */
     public enum Outcome {
         SUCCESS,
@@ -58,7 +59,7 @@ public final class UseCaseObservability {
 
     private static final Pattern NAME_PATTERN = Pattern.compile("^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$");
 
-    /** Marker implemented by every proxy created here, so wiring code can avoid double-wrapping. */
+    /** Marker, den jeder hier erzeugte Proxy implementiert, damit Wiring-Code doppeltes Wrapping vermeiden kann. */
     public interface Observed {}
 
     private UseCaseObservability() {}
@@ -68,17 +69,18 @@ public final class UseCaseObservability {
     }
 
     /**
-     * Wraps {@code target}. Fails fast at wiring time if any use case method (abstract or default) returns no
-     * {@link Mono} or takes no {@link UseCaseMetadata}, or if the target overrides a default method, so a new use case
-     * cannot silently escape the audit.
+     * Hüllt {@code target} ein. Scheitert schon beim Wiring, wenn eine Use-Case-Methode (abstrakt oder default) kein
+     * {@link Mono} liefert oder kein {@link UseCaseMetadata} nimmt oder wenn das Target eine Default-Methode
+     * überschreibt; so kann ein neuer Use Case nicht unbemerkt dem Audit entgehen.
      */
     public static <T> T wrap(Class<T> useCase, T target, ObservationRegistry registry) {
         return wrap(useCase, target, registry, UnaryOperator.identity());
     }
 
     /**
-     * As {@link #wrap(Class, Object, ObservationRegistry)}, but {@code inner} wraps each (re-)invocation of the target
-     * inside the observation, e.g. with a transaction and retry. The observation still covers the call once.
+     * Wie {@link #wrap(Class, Object, ObservationRegistry)}, aber {@code inner} hüllt jeden (erneuten) Aufruf des
+     * Targets innerhalb der Observation ein, z. B. mit Transaktion und Retry. Die Observation umfasst den Aufruf
+     * trotzdem nur einmal.
      */
     public static <T> T wrap(Class<T> useCase, T target, ObservationRegistry registry, UnaryOperator<Mono<?>> inner) {
         if (!useCase.isInterface()) {
@@ -114,7 +116,8 @@ public final class UseCaseObservability {
                 };
             }
             if (!Modifier.isAbstract(method.getModifiers())) {
-                // default methods run on the proxy, so the abstract methods they call are observed (once)
+                // Default-Methoden laufen auf dem Proxy, daher werden die abstrakten Methoden, die sie aufrufen,
+                // (einmal) beobachtet
                 return InvocationHandler.invokeDefault(proxy, method, args);
             }
             UseCaseMetadata metadata = metadataOf(args);
@@ -172,7 +175,7 @@ public final class UseCaseObservability {
     private static Outcome outcome(SignalType signal, boolean emitted, boolean voidResult) {
         return switch (signal) {
             case ON_ERROR -> Outcome.ERROR;
-            case CANCEL -> emitted ? Outcome.SUCCESS : Outcome.CANCELLED; // Mono cancels upstream after onNext
+            case CANCEL -> emitted ? Outcome.SUCCESS : Outcome.CANCELLED; // Mono cancelt den Upstream nach onNext
             default -> emitted || voidResult ? Outcome.SUCCESS : Outcome.EMPTY;
         };
     }
@@ -186,7 +189,7 @@ public final class UseCaseObservability {
         }
     }
 
-    /** The proxy runs default methods itself, so an override in the target would be silently bypassed. */
+    /** Der Proxy führt Default-Methoden selbst aus, daher würde ein Override im Target stillschweigend umgangen. */
     private static void requireNotOverridden(Class<?> useCase, Object target, Method defaultMethod) {
         try {
             Method implementation =
@@ -197,7 +200,8 @@ public final class UseCaseObservability {
                         + ", which the use case proxy bypasses; make it abstract");
             }
         } catch (NoSuchMethodException e) {
-            // target class not public or method not visible: nothing it could override through the proxy
+            // Target-Klasse nicht public oder Methode nicht sichtbar: Es gibt nichts, was sie über den Proxy
+            // überschreiben könnte
         }
     }
 

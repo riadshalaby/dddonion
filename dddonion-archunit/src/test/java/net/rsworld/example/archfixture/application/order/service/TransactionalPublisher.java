@@ -5,7 +5,7 @@ import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import reactor.core.publisher.Mono;
 
-/** Fixture: allowed, a service annotated with {@code @TransactionalUseCase} may publish domain events. */
+/** Fixture: erlaubt, ein Service mit {@code @TransactionalUseCase} darf Domain Events publizieren. */
 @TransactionalUseCase
 class TransactionalPublisher {
     private final DomainEventPublisherPort events;

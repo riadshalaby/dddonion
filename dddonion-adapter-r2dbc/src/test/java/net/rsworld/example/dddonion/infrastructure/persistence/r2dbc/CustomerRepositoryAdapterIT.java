@@ -154,7 +154,8 @@ class CustomerRepositoryAdapterIT {
     @DisplayName("Ein doppelter Primärschlüssel wird nicht als E-Mail-Konflikt gemeldet")
     void duplicateIdIsNotReportedAsEmailConflict() {
         Customer first = newCustomer("pk-one@example.com");
-        // Same id, different email; the repository claims the row does not exist, so the adapter takes the insert path.
+        // Gleiche Id, andere E-Mail; das Repository behauptet, die Zeile existiere nicht, also nimmt der Adapter den
+        // Insert-Pfad.
         Customer second = new Customer(
                 first.id(),
                 new CustomerEmail("pk-two@example.com"),

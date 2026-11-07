@@ -11,7 +11,7 @@ import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
 import net.rsworld.example.dddonion.domain.customer.repository.CustomerRepository;
 import reactor.core.publisher.Mono;
 
-/** Registers a customer. A duplicate e-mail surfaces as {@code EmailAlreadyRegisteredException} from the port. */
+/** Registriert einen Customer. Eine doppelte E-Mail kommt als {@code EmailAlreadyRegisteredException} aus dem Port. */
 @Slf4j
 @TransactionalUseCase
 @ApplicationComponent
@@ -29,7 +29,7 @@ class RegisterCustomerService implements RegisterCustomerUseCase {
         return customers
                 .save(customer)
                 .map(Customer::id)
-                // log only the id: the e-mail is PII
+                // nur die Id loggen: Die E-Mail ist ein personenbezogenes Datum
                 .doOnNext(id -> log.info("Customer {} registered", id.value()));
     }
 }

@@ -7,9 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Writes exactly one line per use-case execution to the {@value #LOGGER_NAME} logger. It is fed by the same observation
- * as the timer metric, so audit logs and metrics cannot disagree. Values are attached as SLF4J key-value pairs, which
- * structured (JSON) logging emits as separate fields for Loki/Grafana.
+ * Schreibt genau eine Zeile pro Use-Case-Ausführung auf den Logger {@value #LOGGER_NAME}. Er wird von derselben
+ * Observation gespeist wie die Timer-Metrik, daher können Audit-Logs und Metriken nicht auseinanderlaufen. Die Werte
+ * hängen als SLF4J-Key-Value-Paare an, die strukturiertes (JSON-)Logging als eigene Felder für Loki/Grafana ausgibt.
  */
 public class AuditLogObservationHandler implements ObservationHandler<Observation.Context> {
 

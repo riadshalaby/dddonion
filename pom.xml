@@ -247,9 +247,9 @@
                 <requireJavaVersion>
                   <version>[21,)</version>
                 </requireJavaVersion>
-                <!-- since even testcontainer 2.x still needs junit4, we cant disallow it
-                newer version might finally fix this. See https://github.com/testcontainers/testcontainers-java/issues/970
-                as of now even the 2.0.1 version still needs junit4 -->
+                <!-- Selbst Testcontainers 2.x braucht noch JUnit 4, daher können wir es nicht verbieten.
+                Eine neuere Version behebt das vielleicht endlich. Siehe https://github.com/testcontainers/testcontainers-java/issues/970
+                Stand jetzt braucht selbst Version 2.0.1 noch JUnit 4. -->
                 <!--
                 <bannedDependencies>
                   <excludes>

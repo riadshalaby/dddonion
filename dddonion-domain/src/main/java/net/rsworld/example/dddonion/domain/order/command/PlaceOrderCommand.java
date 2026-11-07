@@ -5,9 +5,9 @@ import net.rsworld.example.dddonion.domain.common.Money;
 import net.rsworld.example.dddonion.domain.customer.model.CustomerId;
 
 /**
- * Command to place an order, composed of already-validated value objects. Because {@link CustomerId} and {@link Money}
- * enforce their own format/range rules, the command only has to assert their presence — the actual validation is not
- * duplicated here.
+ * Command zum Anlegen einer Order, zusammengesetzt aus bereits validierten Value Objects. Da {@link CustomerId} und
+ * {@link Money} ihre Format- und Wertebereichsregeln selbst durchsetzen, muss der Command nur ihr Vorhandensein prüfen
+ * — die eigentliche Validierung wird hier nicht dupliziert.
  */
 public record PlaceOrderCommand(CustomerId customerId, Money total) {
 

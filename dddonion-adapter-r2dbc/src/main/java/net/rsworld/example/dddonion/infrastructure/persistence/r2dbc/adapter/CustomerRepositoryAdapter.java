@@ -13,13 +13,14 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import reactor.core.publisher.Mono;
 
 /**
- * R2DBC adapter for {@link CustomerRepository}.
+ * R2DBC-Adapter für {@link CustomerRepository}.
  *
- * <p>The version of an update always comes from the domain object and is never adopted from the database row. Otherwise
- * the optimistic lock would be defeated, because a stale aggregate would silently overwrite newer data. The customer
- * version is a pure concurrency token, so Spring Data's {@code @Version} manages it. A stale version results in a
- * {@link ConcurrentAggregateUpdateException}; a duplicate on the unique key {@code uq_customers_email} in an
- * {@link EmailAlreadyRegisteredException}; any other duplicate key is passed on.
+ * <p>Die Version eines Updates stammt immer aus dem Domain-Objekt und wird nie aus der Datenbankzeile übernommen. Sonst
+ * wäre das Optimistic Locking ausgehebelt, weil ein veraltetes Aggregate neuere Daten stillschweigend überschreiben
+ * würde. Die Customer-Version ist ein reines Concurrency-Token, daher verwaltet sie Spring Datas {@code @Version}. Eine
+ * veraltete Version führt zu einer {@link ConcurrentAggregateUpdateException}, ein Duplikat auf dem Unique Key
+ * {@code uq_customers_email} zu einer {@link EmailAlreadyRegisteredException}; jedes andere Duplikat wird
+ * weitergereicht.
  */
 public class CustomerRepositoryAdapter implements CustomerRepository {
 
@@ -33,16 +34,16 @@ public class CustomerRepositoryAdapter implements CustomerRepository {
 
     @Override
     public Mono<Customer> save(Customer customer) {
-        // deferred: the row is built per subscription, so resubscribing never reuses a row mutated by an earlier
-        // attempt
+        // verzögert: Die Row wird pro Subscription neu gebaut, daher verwendet eine erneute Subscription nie eine Row,
+        // die ein früherer Versuch verändert hat
         return Mono.defer(() -> {
                     CustomerRow row = CustomerMapper.toRow(customer);
                     return repo.existsById(row.getId()).flatMap(exists -> {
                         if (!exists) {
-                            // INSERT path: version null -> Spring Data inserts with the initial version
+                            // INSERT-Pfad: Version null -> Spring Data fügt mit der Startversion ein
                             row.setVersion(null);
                         }
-                        // UPDATE path: version stays the one of the domain object (UPDATE ... WHERE version = ?)
+                        // UPDATE-Pfad: Die Version bleibt die des Domain-Objekts (UPDATE ... WHERE version = ?)
                         return repo.save(row);
                     });
                 })
@@ -61,7 +62,10 @@ public class CustomerRepositoryAdapter implements CustomerRepository {
         return repo.findById(id.value()).map(CustomerMapper::toDomain);
     }
 
-    /** Only the e-mail unique key counts as an e-mail conflict; other duplicates (e.g. primary key) pass through. */
+    /**
+     * Nur der Unique Key auf der E-Mail gilt als E-Mail-Konflikt; andere Duplikate (z. B. Primärschlüssel) werden
+     * durchgereicht.
+     */
     private static boolean violates(Throwable error, String constraint) {
         for (Throwable t = error; t != null; t = t.getCause()) {
             if (t.getMessage() != null && t.getMessage().contains(constraint)) {

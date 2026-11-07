@@ -10,8 +10,8 @@ import net.rsworld.example.dddonion.domain.customer.repository.CustomerRepositor
 import reactor.core.publisher.Mono;
 
 /**
- * Changes the credit limit of an existing customer. Retry on a version conflict is part of the pipeline: every attempt
- * subscribes the lazy chain again, so the customer is loaded afresh in a new transaction.
+ * Ändert das Kreditlimit eines bestehenden Customers. Der Retry bei einem Versionskonflikt ist Teil der Pipeline: Jeder
+ * Versuch abonniert die lazy Kette neu, daher wird der Customer in einer neuen Transaktion frisch geladen.
  */
 @TransactionalUseCase
 @ApplicationComponent

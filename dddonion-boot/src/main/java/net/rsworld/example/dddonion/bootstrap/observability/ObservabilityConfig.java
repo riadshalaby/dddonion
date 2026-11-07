@@ -8,11 +8,11 @@ import org.springframework.context.annotation.Configuration;
 public class ObservabilityConfig {
 
     static {
-        // must happen before the first reactive chain captures context
+        // muss passieren, bevor die erste reaktive Kette den Context erfasst
         UseCaseMdc.register(ContextRegistry.getInstance());
     }
 
-    /** Picked up by Boot's ObservationRegistry auto-configuration alongside the metrics handler. */
+    /** Wird von Boots Auto-Konfiguration der ObservationRegistry neben dem Metrik-Handler aufgenommen. */
     @Bean
     public AuditLogObservationHandler auditLogObservationHandler() {
         return new AuditLogObservationHandler();

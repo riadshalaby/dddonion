@@ -5,7 +5,7 @@ import net.rsworld.example.dddonion.application.event.DomainEventPublisherPort;
 import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import reactor.core.publisher.Mono;
 
-/** Fixture: a service without {@code @TransactionalUseCase} that publishes domain events. */
+/** Fixture: ein Service ohne {@code @TransactionalUseCase}, der Domain Events publiziert. */
 class NonTransactionalPublisher {
     private final DomainEventPublisherPort events;
 
@@ -13,12 +13,12 @@ class NonTransactionalPublisher {
         this.events = events;
     }
 
-    /** Violation: direct publish call outside a transactional use case. */
+    /** Verstoß: direkter publish-Aufruf außerhalb eines transaktionalen Use Cases. */
     Mono<Void> publishesViaCall(DomainEvent event) {
         return events.publish(event);
     }
 
-    /** Violation: publish through a method reference. */
+    /** Verstoß: publish über eine Methodenreferenz. */
     Function<DomainEvent, Mono<Void>> publishesViaMethodReference() {
         return events::publish;
     }

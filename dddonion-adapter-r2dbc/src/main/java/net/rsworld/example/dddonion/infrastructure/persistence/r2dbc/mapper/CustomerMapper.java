@@ -16,7 +16,7 @@ public final class CustomerMapper {
         r.setEmail(c.email().value());
         r.setCreditLimit(c.creditLimit().amount());
         r.setOpenAmount(c.openAmount().amount());
-        r.setVersion(c.version()); // the adapter sets it to null for an INSERT
+        r.setVersion(c.version()); // der Adapter setzt sie für ein INSERT auf null
         return r;
     }
 

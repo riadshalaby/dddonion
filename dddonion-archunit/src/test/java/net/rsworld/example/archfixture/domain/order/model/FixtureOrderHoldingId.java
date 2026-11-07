@@ -2,7 +2,7 @@ package net.rsworld.example.archfixture.domain.order.model;
 
 import net.rsworld.example.archfixture.domain.customer.model.FixtureCustomerId;
 
-/** Fixture: allowed, holds only the foreign id. */
+/** Fixture: erlaubt, hält nur die fremde Id. */
 public class FixtureOrderHoldingId {
     FixtureCustomerId customerId;
 }

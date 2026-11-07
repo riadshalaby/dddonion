@@ -20,18 +20,19 @@ import org.springframework.util.ClassUtils;
 import reactor.core.publisher.Mono;
 
 /**
- * Builds the use case pipeline around every bean that implements a {@link UseCase} interface, so a new use case cannot
- * reach the application without audit and metrics. From the outside in: {@link UseCaseObservability}, then, for a bean
- * annotated with {@link TransactionalUseCase}, {@link UseCaseTransaction} (retry, transaction, post-commit events),
- * then the service.
+ * Baut die Use-Case-Pipeline um jedes Bean, das ein {@link UseCase}-Interface implementiert, damit kein neuer Use Case
+ * ohne Audit und Metriken in die Anwendung gelangt. Von außen nach innen: {@link UseCaseObservability}, dann bei einem
+ * mit {@link TransactionalUseCase} annotierten Bean {@link UseCaseTransaction} (Retry, Transaktion,
+ * Post-Commit-Events), dann der Service.
  *
- * <p>Fails the startup if a bean implements more than one use case interface, if two beans share a use case name, if no
- * {@link ObservationRegistry} is available (a use case must never run unaudited, so this is deliberate), or if
- * {@link TransactionalUseCase} sits on a class that is not a {@link UseCase.Kind#COMMAND} use case.
+ * <p>Bricht den Start ab, wenn ein Bean mehr als ein Use-Case-Interface implementiert, wenn sich zwei Beans einen
+ * Use-Case-Namen teilen, wenn keine {@link ObservationRegistry} verfügbar ist (ein Use Case darf nie ohne Audit laufen,
+ * das ist Absicht) oder wenn {@link TransactionalUseCase} an einer Klasse steht, die kein
+ * {@link UseCase.Kind#COMMAND}-Use-Case ist.
  *
- * <p>Runs last among the {@link Ordered} post-processors, so the observation is the outermost layer of those with lower
- * precedence. Application services carry no Spring advice (the application layer is Spring-free), hence no proxy is
- * stacked around the observed use case.
+ * <p>Läuft als letzter der {@link Ordered}-Post-Processors, daher ist die Observation die äußerste Schicht über denen
+ * mit niedrigerer Priorität. Application Services tragen kein Spring-Advice (die Application-Schicht ist Spring-frei),
+ * daher wird kein Proxy um den beobachteten Use Case gestapelt.
  */
 public class UseCasePipelinePostProcessor implements BeanPostProcessor, Ordered {
 
@@ -95,7 +96,7 @@ public class UseCasePipelinePostProcessor implements BeanPostProcessor, Ordered 
 
     @Override
     public int getOrder() {
-        // last among Ordered post-processors: wraps the finished bean; see class Javadoc
+        // letzter der Ordered-Post-Processors: hüllt das fertige Bean ein; siehe Klassen-Javadoc
         return Ordered.LOWEST_PRECEDENCE;
     }
 

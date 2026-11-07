@@ -29,9 +29,9 @@ public class OrderRow {
     private String status;
 
     @Column("version")
-    private Long version; // domain version (event sequence); optimistic locking is done by OrderRepositoryAdapter
+    private Long version; // Domain-Version (Event-Sequenz); das Optimistic Locking übernimmt OrderRepositoryAdapter
 
-    // managed by the database (DEFAULT / ON UPDATE); never written by the application
+    // von der Datenbank verwaltet (DEFAULT / ON UPDATE); nie von der Anwendung geschrieben
     @ReadOnlyProperty
     @Column("created_at")
     private LocalDateTime createdAt;

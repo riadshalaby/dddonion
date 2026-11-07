@@ -1,6 +1,6 @@
 spring:
   reactor:
-    # restores Reactor-context values (use case, actor type, correlation id) as ThreadLocals/MDC on every operator
+    # stellt Werte aus dem Reactor-Context (Use Case, Actor-Typ, Correlation-ID) bei jedem Operator als ThreadLocals/MDC wieder her
     context-propagation: auto
   webflux:
     problemdetails:
@@ -39,11 +39,11 @@ logging:
   level:
     org.springframework.r2dbc: warn
   pattern:
-    # use-case context of the current call (empty outside a use case)
+    # Use-Case-Kontext des aktuellen Aufrufs (leer außerhalb eines Use Cases)
     level: "%5p [%X{usecase:-}|%X{actorType:-}|%X{correlationId:-}]"
 
 ---
-# JSON logs for log shippers (Loki etc.): MDC and SLF4J key-values (incl. the 'audit' logger) become fields.
+# JSON-Logs für Log-Shipper (Loki usw.): MDC und SLF4J-Key-Values (inkl. Logger 'audit') werden zu Feldern.
 spring:
   config:
     activate:

@@ -3,13 +3,13 @@ package net.rsworld.example.dddonion.domain.common;
 import java.math.BigDecimal;
 
 /**
- * A non-negative monetary amount as a self-validating value object. Mirrors the OpenAPI schema {@code MonetaryAmount}
- * ({@code minimum: 0}); the value-based drift test guards that both agree.
+ * Ein nicht negativer Geldbetrag als selbstvalidierendes Value Object. Spiegelt das OpenAPI-Schema
+ * {@code MonetaryAmount} ({@code minimum: 0}); der wertbasierte Drift-Test stellt sicher, dass beide übereinstimmen.
  *
- * <p>Equality is by value, ignoring scale: {@code 100} equals {@code 100.00}. The record's generated
- * {@code equals}/{@code hashCode} would use {@link BigDecimal#equals}, which is scale-sensitive, so an amount read back
- * from a {@code DECIMAL(19,2)} column would no longer equal the amount that was saved. The amount itself is kept as
- * given.
+ * <p>Gleichheit gilt nach Wert, unabhängig von der Skalierung: {@code 100} ist gleich {@code 100.00}. Das vom Record
+ * generierte {@code equals}/{@code hashCode} würde {@link BigDecimal#equals} nutzen, das die Skalierung berücksichtigt;
+ * ein aus einer {@code DECIMAL(19,2)}-Spalte gelesener Betrag wäre dann nicht mehr gleich dem gespeicherten. Der Betrag
+ * selbst bleibt so, wie er übergeben wurde.
  */
 public record Money(BigDecimal amount) {
 
@@ -34,7 +34,7 @@ public record Money(BigDecimal amount) {
         return new Money(amount.add(other.amount));
     }
 
-    /** Compares by value, ignoring scale ({@code 100.00} is not greater than {@code 100}). */
+    /** Vergleicht nach Wert, unabhängig von der Skalierung ({@code 100.00} ist nicht größer als {@code 100}). */
     public boolean isGreaterThan(Money other) {
         return amount.compareTo(other.amount) > 0;
     }

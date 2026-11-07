@@ -13,16 +13,17 @@ import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 /**
- * Runs a use case invocation in a transaction and retries it on {@link ConcurrentAggregateUpdateException}.
+ * Führt einen Use-Case-Aufruf in einer Transaktion aus und wiederholt ihn bei
+ * {@link ConcurrentAggregateUpdateException}.
  *
- * <p>The retry wraps the transaction, so every attempt re-invokes the service (it must load its aggregates anew) in a
- * fresh transaction; the failed attempt is rolled back first. When the attempts are used up, the original exception
- * reaches the caller.
+ * <p>Der Retry umschließt die Transaktion, daher ruft jeder Versuch den Service neu auf (er muss seine Aggregates neu
+ * laden), in einer frischen Transaktion; der gescheiterte Versuch wird vorher zurückgerollt. Sind die Versuche
+ * aufgebraucht, erreicht die ursprüngliche Exception den Aufrufer.
  *
- * <p>Domain events published through {@link PostCommitEvents#publisher()} are buffered per attempt and published after
- * the commit, before the result is emitted. A failed attempt publishes nothing. A listener that throws is logged and
- * skipped. The publishing runs in the same chain, so the Reactor context (correlation id in the MDC) is still restored
- * for synchronous listeners.
+ * <p>Domain Events, die über {@link PostCommitEvents#publisher()} publiziert werden, werden pro Versuch gepuffert und
+ * nach dem Commit publiziert, bevor das Ergebnis emittiert wird. Ein gescheiterter Versuch publiziert nichts. Ein
+ * Listener, der wirft, wird geloggt und übersprungen. Das Publizieren läuft in derselben Kette, daher ist der
+ * Reactor-Context (Correlation-ID im MDC) für synchrone Listener noch wiederhergestellt.
  */
 @Slf4j
 public final class UseCaseTransaction implements UnaryOperator<Mono<?>> {
@@ -40,7 +41,7 @@ public final class UseCaseTransaction implements UnaryOperator<Mono<?>> {
         this.events = events;
     }
 
-    /** @param invocation must call the service anew on every subscription */
+    /** @param invocation muss den Service bei jeder Subscription neu aufrufen */
     @Override
     public Mono<?> apply(Mono<?> invocation) {
         return Mono.defer(() -> attempt(invocation))
@@ -54,7 +55,10 @@ public final class UseCaseTransaction implements UnaryOperator<Mono<?>> {
                         .then(Mono.justOrEmpty(committed.result())));
     }
 
-    /** The use case is committed, so a failing listener must neither reach the caller nor stop the later events. */
+    /**
+     * Der Use Case ist committet, daher darf ein scheiternder Listener weder den Aufrufer erreichen noch die späteren
+     * Events aufhalten.
+     */
     private void publishIsolated(DomainEvent event) {
         try {
             events.publishEvent(event);
@@ -63,10 +67,11 @@ public final class UseCaseTransaction implements UnaryOperator<Mono<?>> {
         }
     }
 
-    /** One attempt with its own event buffer; completes after the commit, with an empty result if there is none. */
+    /** Ein Versuch mit eigenem Event-Puffer; schließt nach dem Commit ab, mit leerem Ergebnis, falls es keines gibt. */
     private Mono<Committed> attempt(Mono<?> invocation) {
         PostCommitEvents.Buffer buffer = new PostCommitEvents.Buffer();
-        // transactional(Mono) is execute(..).singleOrEmpty(): onNext is held back until the commit has completed
+        // transactional(Mono) ist execute(..).singleOrEmpty(): onNext wird zurückgehalten, bis der Commit abgeschlossen
+        // ist
         return tx.transactional(invocation)
                 .<Object>map(Object.class::cast)
                 .map(result -> new Committed(buffer, Optional.of(result)))

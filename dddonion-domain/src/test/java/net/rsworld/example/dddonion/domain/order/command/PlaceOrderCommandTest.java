@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Test;
 @DisplayName("PlaceOrderCommand invariants")
 class PlaceOrderCommandTest {
 
-    // Format/range rules are covered by CustomerIdTest and MoneyTest; the command only guards presence,
-    // because its fields are already-validated value objects (no duplicated validation here).
+    // Format- und Wertebereichsregeln decken CustomerIdTest und MoneyTest ab; der Command prüft nur das Vorhandensein,
+    // weil seine Felder bereits validierte Value Objects sind (keine doppelte Validierung).
 
     @Test
     @DisplayName("Creates a command from valid value objects")

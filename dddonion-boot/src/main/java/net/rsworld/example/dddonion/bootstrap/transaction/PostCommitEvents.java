@@ -7,9 +7,9 @@ import net.rsworld.example.dddonion.domain.common.DomainEvent;
 import reactor.core.publisher.Mono;
 
 /**
- * Collects domain events inside a {@link UseCaseTransaction} instead of publishing them right away, so listeners only
- * see events of committed state. {@link UseCaseTransaction} creates one buffer per attempt, hands it down through the
- * Reactor context and publishes its content after the commit.
+ * Sammelt Domain Events innerhalb einer {@link UseCaseTransaction}, statt sie sofort zu publizieren, damit Listener nur
+ * Events zu committetem Zustand sehen. {@link UseCaseTransaction} legt pro Versuch einen Puffer an, reicht ihn über den
+ * Reactor-Context nach unten und publiziert seinen Inhalt nach dem Commit.
  */
 public final class PostCommitEvents {
 
@@ -17,7 +17,7 @@ public final class PostCommitEvents {
 
     private PostCommitEvents() {}
 
-    /** @return a publisher that buffers the event; fails outside a {@code @TransactionalUseCase} */
+    /** @return ein Publisher, der das Event puffert; scheitert außerhalb eines {@code @TransactionalUseCase} */
     public static DomainEventPublisherPort publisher() {
         return event -> Mono.deferContextual(ctx -> ctx.<Buffer>getOrEmpty(CONTEXT_KEY)
                 .map(buffer -> {
@@ -28,7 +28,7 @@ public final class PostCommitEvents {
                         "Domain events can only be published inside a @TransactionalUseCase"))));
     }
 
-    /** Events of one attempt in publish order; the service may publish from different threads. */
+    /** Events eines Versuchs in Publish-Reihenfolge; der Service kann aus verschiedenen Threads publizieren. */
     static final class Buffer {
         private final List<DomainEvent> events = new ArrayList<>();
 

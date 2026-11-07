@@ -1,4 +1,4 @@
-# dddonion - Reactive DDD + Onion + Hexagonal example (Spring Boot 4, WebFlux, R2DBC, Liquibase)
+# dddonion - Reaktives Beispiel für DDD + Onion + Hexagonal (Spring Boot 4, WebFlux, R2DBC, Liquibase)
 
 Dieses Projekt demonstriert Domain-Driven Design (DDD), Onion Architecture und Hexagonal Architecture (Ports & Adapters) in einem reaktiven Spring-Stack.
 
@@ -98,7 +98,7 @@ Zielbild:
     - Unbekannter Customer: `404`, `application/problem+json`
     - Gleichzeitige Änderung, Wiederholungsversuche erschöpft: `409`, `application/problem+json`
 - Vertrag & UI zur Laufzeit:
-  - `GET /openapi.yaml` – liefert den authored Vertrag unverändert aus.
+  - `GET /openapi.yaml` – liefert den handgeschriebenen Vertrag unverändert aus.
   - `GET /swagger-ui.html` – Swagger UI (statische Webjar-Assets), lädt `/openapi.yaml`; kein Code-Scanning.
 
 ## Datenfluss: Order anlegen
@@ -242,5 +242,5 @@ open http://localhost:8080/swagger-ui.html
 - `Money` und `MonetaryAmount` (OpenAPI) akzeptieren jede Anzahl Nachkommastellen. Die DB speichert `DECIMAL(19,2)`, beim Persistieren wird also auf 2 Stellen gerundet.
 - `Money` vergleicht nach Wert, unabhängig von der Skalierung: `100` ist gleich `100.00` (`equals` und `hashCode`). Der Betrag selbst bleibt so, wie er übergeben wurde.
 
-## License
-This project is licensed under the MIT License. See `LICENSE`.
+## Lizenz
+Dieses Projekt steht unter der MIT-Lizenz. Siehe `LICENSE`.

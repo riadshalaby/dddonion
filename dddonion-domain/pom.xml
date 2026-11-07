@@ -9,7 +9,7 @@
 
   <artifactId>dddonion-domain</artifactId>
   <dependencies>
-    <!-- reactive port types (Mono/Flux); no Spring or other framework in the domain -->
+    <!-- reaktive Port-Typen (Mono/Flux); kein Spring oder anderes Framework in der Domain -->
     <dependency>
       <groupId>io.projectreactor</groupId>
       <artifactId>reactor-core</artifactId>

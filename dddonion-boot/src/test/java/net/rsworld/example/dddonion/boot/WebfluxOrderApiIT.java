@@ -227,7 +227,7 @@ class WebfluxOrderApiIT {
                 .expectBody(String.class)
                 .value(body -> assertThat(body).contains("SwaggerUIBundle"));
 
-        // version-agnostic webjar path resolves via webjars-locator-lite
+        // versionsunabhängiger Webjar-Pfad, aufgelöst über webjars-locator-lite
         client.get()
                 .uri("/webjars/swagger-ui/swagger-ui-bundle.js")
                 .exchange()

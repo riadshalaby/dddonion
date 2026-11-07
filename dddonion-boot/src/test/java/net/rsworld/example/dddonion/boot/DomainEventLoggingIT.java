@@ -77,7 +77,7 @@ class DomainEventLoggingIT {
     @Test
     @DisplayName("Schreibt beim Bestellen per HTTP ein OrderPlaced-DomainEvent ins Monitoring-Log")
     void placingOrder_viaHttp_emitsDomainEvent_which_is_logged() {
-        // Capture logs from the listener
+        // Logs des Listeners mitschneiden
         LoggerContext ctx = (LoggerContext) LoggerFactory.getILoggerFactory();
         Logger logger =
                 (Logger) LoggerFactory.getLogger("net.rsworld.example.dddonion.monitor.DomainEventLoggingListener");
@@ -96,7 +96,7 @@ class DomainEventLoggingIT {
 
         logger.addAppender(appender);
 
-        // An order needs an existing customer
+        // Eine Order braucht einen existierenden Customer
         String customerId = given().baseUri("http://localhost")
                 .port(port)
                 .contentType("application/json")
@@ -108,7 +108,7 @@ class DomainEventLoggingIT {
                 .extract()
                 .path("customerId");
 
-        // Call HTTP endpoint to place an order
+        // HTTP-Endpunkt aufrufen, um eine Order anzulegen
         given().baseUri("http://localhost")
                 .port(port)
                 .contentType("application/json")
@@ -127,7 +127,7 @@ class DomainEventLoggingIT {
             assertThat(logged).contains("aggregateId=");
             assertThat(logged).contains("sequence=1");
             assertThat(logged).contains("occurredAt=");
-            // the async listener runs in the context of the use case that published the event
+            // der asynchrone Listener läuft im Kontext des Use Cases, der das Event publiziert hat
             assertThat(logged).contains("correlationId=it-corr-1");
         });
     }

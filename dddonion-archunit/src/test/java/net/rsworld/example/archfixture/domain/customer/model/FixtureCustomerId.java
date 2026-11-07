@@ -1,4 +1,4 @@
 package net.rsworld.example.archfixture.domain.customer.model;
 
-/** Fixture: the identifier of the foreign aggregate. */
+/** Fixture: die Id des fremden Aggregates. */
 public record FixtureCustomerId(String value) {}

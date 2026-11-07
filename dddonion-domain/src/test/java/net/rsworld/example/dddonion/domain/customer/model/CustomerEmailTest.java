@@ -63,7 +63,7 @@ class CustomerEmailTest {
     @Test
     @DisplayName("Rejects e-mails longer than the maximum length")
     void rejectsTooLong() {
-        String local = "a".repeat(CustomerEmail.MAX_LENGTH); // pushes total length past MAX_LENGTH
+        String local = "a".repeat(CustomerEmail.MAX_LENGTH); // schiebt die Gesamtlänge über MAX_LENGTH
         assertThatThrownBy(() -> new CustomerEmail(local + "@example.com"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("must not exceed");

@@ -27,13 +27,13 @@ import net.rsworld.example.dddonion.architecture.ApplicationComponent;
 import net.rsworld.example.dddonion.architecture.TransactionalUseCase;
 import net.rsworld.example.dddonion.architecture.UseCase;
 
-/** ArchUnit rules for DDD + Onion + Hex with a relaxed application whitelist. */
+/** ArchUnit-Regeln für DDD + Onion + Hex mit gelockerter Whitelist für die Application. */
 @AnalyzeClasses(packages = "net.rsworld.example.dddonion", importOptions = ImportOption.DoNotIncludeTests.class)
 public class ArchitectureTest {
 
-    /* --- Domain purity --- */
+    /* --- Reinheit der Domain --- */
 
-    /** Domain must not depend on frameworks or other layers. */
+    /** Die Domain darf weder von Frameworks noch von anderen Schichten abhängen. */
     @ArchTest
     static final ArchRule domain_should_not_depend_on_frameworks_or_other_layers = noClasses()
             .that()
@@ -43,7 +43,7 @@ public class ArchitectureTest {
             .resideInAnyPackage(
                     "..application..", "..infrastructure..", "..bootstrap..", "..monitor..", "org.springframework..");
 
-    /** Domain should only depend on JDK, Reactor (reactive port types) and itself. */
+    /** Die Domain darf nur von JDK, Reactor (reaktive Port-Typen) und sich selbst abhängen. */
     @ArchTest
     static final ArchRule domain_should_only_depend_on_java_and_domain = classes()
             .that()
@@ -52,9 +52,11 @@ public class ArchitectureTest {
             .onlyDependOnClassesThat()
             .resideInAnyPackage("..domain..", "java..", "javax..", "reactor..", "org.reactivestreams..");
 
-    /* --- Application: relaxed whitelist --- */
+    /* --- Application: gelockerte Whitelist --- */
 
-    /** Application may depend on Domain (+ reactive APIs) and selected framework-neutral libs. */
+    /**
+     * Die Application darf von der Domain (+ reaktiven APIs) und ausgewählten frameworkneutralen Bibliotheken abhängen.
+     */
     @ArchTest
     static final ArchRule application_whitelist_dependencies = classes()
             .that()
@@ -62,26 +64,26 @@ public class ArchitectureTest {
             .should()
             .onlyDependOnClassesThat()
             .resideInAnyPackage(
-                    // own code
+                    // eigener Code
                     "..application..",
                     "..domain..",
-                    // architecture annotations
+                    // Architektur-Annotationen
                     "net.rsworld.example.dddonion.architecture..",
                     // JDK
                     "java..",
                     "javax..",
-                    // reactive
+                    // reaktiv
                     "reactor..",
                     "org.reactivestreams..",
-                    // logging & annotations
+                    // Logging & Annotationen
                     "org.slf4j..",
                     "lombok..",
-                    // optional: bean validation in app DTOs
+                    // optional: Bean Validation in App-DTOs
                     "jakarta.validation..");
 
-    /* --- Ports are interfaces --- */
+    /* --- Ports sind Interfaces --- */
 
-    /** Ports must be interfaces (domain repository ports + application event publisher port). */
+    /** Ports müssen Interfaces sein (Repository-Ports der Domain + Event-Publisher-Port der Application). */
     @ArchTest
     static final ArchRule ports_are_interfaces = classes()
             .that()
@@ -91,7 +93,7 @@ public class ArchitectureTest {
             .should()
             .beInterfaces();
 
-    /** Use case ports are annotated interfaces, so name and kind are explicit. */
+    /** Use-Case-Ports sind annotierte Interfaces, damit Name und Art explizit sind. */
     @ArchTest
     static final ArchRule use_case_ports_are_annotated_interfaces = classes()
             .that()
@@ -101,7 +103,7 @@ public class ArchitectureTest {
             .andShould()
             .beAnnotatedWith(UseCase.class);
 
-    /** Services are only reachable through their use case interface, so their classes are not public. */
+    /** Services sind nur über ihr Use-Case-Interface erreichbar, daher sind ihre Klassen nicht public. */
     @ArchTest
     static final ArchRule application_service_package_is_not_public = classes()
             .that()
@@ -111,7 +113,7 @@ public class ArchitectureTest {
             .should()
             .notBePublic();
 
-    /** Use case implementations are wired by component scan on {@code @ApplicationComponent}. */
+    /** Use-Case-Implementierungen werden per Component-Scan auf {@code @ApplicationComponent} verdrahtet. */
     @ArchTest
     static final ArchRule use_case_implementations_are_application_components = classes()
             .that()
@@ -136,9 +138,9 @@ public class ArchitectureTest {
                 javaClass -> javaClass.getAllRawInterfaces().stream().anyMatch(i -> i.isAnnotatedWith(UseCase.class)));
     }
 
-    /* --- Aggregate boundaries --- */
+    /* --- Aggregate-Grenzen --- */
 
-    /** Aggregates reference each other in domain code only through {@code *Id} types. */
+    /** Aggregates referenzieren einander im Domain-Code nur über {@code *Id}-Typen. */
     @ArchTest
     static final ArchRule aggregates_reference_each_other_only_by_id = slices().matching("..domain.(*)..")
             .should()
@@ -146,7 +148,7 @@ public class ArchitectureTest {
             .ignoreDependency(alwaysTrue(), resideInAPackage("..domain.common.."))
             .ignoreDependency(alwaysTrue(), simpleNameEndingWith("Id"));
 
-    /** Use cases of different aggregates are independent; only context and event ports are shared. */
+    /** Use Cases verschiedener Aggregates sind unabhängig; geteilt werden nur Context- und Event-Ports. */
     @ArchTest
     static final ArchRule aggregate_use_cases_are_independent = slices().matching("..application.(*)..")
             .should()
@@ -154,8 +156,9 @@ public class ArchitectureTest {
             .ignoreDependency(alwaysTrue(), resideInAnyPackage("..application.context..", "..application.event.."));
 
     /**
-     * Anything but a read ({@code find*}, {@code exists*}) on a repository port needs the transaction, retry and event
-     * pipeline of {@code @TransactionalUseCase}. Method references count as accesses.
+     * Jeder Zugriff auf einen Repository-Port außer einem Lesen ({@code find*}, {@code exists*}) braucht die
+     * Transaktions-, Retry- und Event-Pipeline von {@code @TransactionalUseCase}. Methodenreferenzen zählen als
+     * Zugriffe.
      */
     @ArchTest
     static final ArchRule repository_writes_only_in_transactional_use_cases = classes()
@@ -166,8 +169,9 @@ public class ArchitectureTest {
                     + " shared building blocks read and compute, only the service with @TransactionalUseCase saves");
 
     /**
-     * Events are buffered per transaction attempt and published after the commit; outside {@code @TransactionalUseCase}
-     * there is no buffer and {@code publish} fails at runtime. Method references count as accesses.
+     * Events werden pro Transaktionsversuch gepuffert und nach dem Commit publiziert; außerhalb von
+     * {@code @TransactionalUseCase} gibt es keinen Puffer, und {@code publish} scheitert zur Laufzeit.
+     * Methodenreferenzen zählen als Zugriffe.
      */
     @ArchTest
     static final ArchRule domain_events_published_only_in_transactional_use_cases = classes()
@@ -203,7 +207,7 @@ public class ArchitectureTest {
                 if (isTransactional(service)) {
                     return;
                 }
-                // accesses include method calls and method references
+                // Zugriffe umfassen Methodenaufrufe und Methodenreferenzen
                 for (JavaAccess<?> access : service.getAccessesFromSelf()) {
                     if (!(access instanceof JavaCodeUnitAccess<?>)) {
                         continue;
@@ -220,7 +224,7 @@ public class ArchitectureTest {
         };
     }
 
-    /** Nested and anonymous classes (and their lambdas) belong to the use case that encloses them. */
+    /** Verschachtelte und anonyme Klassen (samt ihren Lambdas) gehören zu dem Use Case, der sie umschließt. */
     private static boolean isTransactional(JavaClass javaClass) {
         JavaClass outer = javaClass;
         while (outer.getEnclosingClass().isPresent()) {
@@ -229,7 +233,7 @@ public class ArchitectureTest {
         return outer.isAnnotatedWith(TransactionalUseCase.class);
     }
 
-    /* --- Layered architecture incl. 'monitor' layer --- */
+    /* --- Schichtenarchitektur inkl. 'monitor'-Schicht --- */
 
     @ArchTest
     static final ArchRule layered_onion_hex_with_monitor = layeredArchitecture()
@@ -241,11 +245,11 @@ public class ArchitectureTest {
             .layer("infrastructure")
             .definedBy("..infrastructure..")
             .optionalLayer("monitor")
-            .definedBy("..monitor..") // optional: avoid "empty layer" noise
+            .definedBy("..monitor..") // optional: vermeidet Meldungen zu leeren Schichten
             .optionalLayer("boot")
-            .definedBy("..bootstrap..") // optional: avoid "empty layer" noise
+            .definedBy("..bootstrap..") // optional: vermeidet Meldungen zu leeren Schichten
 
-            // Outgoing (who MAY access whom)
+            // Ausgehend (wer auf wen zugreifen DARF)
             .whereLayer("domain")
             .mayNotAccessAnyLayer()
             .whereLayer("application")
@@ -257,7 +261,7 @@ public class ArchitectureTest {
             .whereLayer("boot")
             .mayOnlyAccessLayers("domain", "application", "infrastructure", "monitor", "boot")
 
-            // Incoming (who MAY be accessed by whom) – allow self access
+            // Eingehend (wer von wem angesprochen werden DARF) – Zugriff auf sich selbst erlaubt
             .whereLayer("application")
             .mayOnlyBeAccessedByLayers("application", "infrastructure", "boot")
             .whereLayer("domain")
@@ -267,16 +271,16 @@ public class ArchitectureTest {
             .whereLayer("monitor")
             .mayOnlyBeAccessedByLayers("monitor", "boot");
 
-    /* --- Adapter isolation --- */
+    /* --- Adapter-Isolation --- */
 
-    /** Infrastructure adapter slices (web, persistence, ...) must not depend on each other. */
+    /** Slices der Infrastruktur-Adapter (web, persistence, ...) dürfen nicht voneinander abhängen. */
     @ArchTest
     static final ArchRule adapters_should_not_depend_on_each_other = slices().matching(
                     "net.rsworld.example.dddonion.infrastructure.(*)..")
             .should()
             .notDependOnEachOther();
 
-    /** Web controllers must not depend on other infrastructure adapters (only on Application/Domain). */
+    /** Web-Controller dürfen nicht von anderen Infrastruktur-Adaptern abhängen (nur von Application/Domain). */
     @ArchTest
     static final ArchRule controllers_only_call_app_or_domain = noClasses()
             .that()
@@ -285,7 +289,7 @@ public class ArchitectureTest {
             .dependOnClassesThat()
             .resideInAnyPackage("..infrastructure.persistence..", "..monitor..");
 
-    /** Inbound adapters (HTTP) reach the domain only through use cases, never through repositories. */
+    /** Eingehende Adapter (HTTP) erreichen die Domain nur über Use Cases, nie über Repositories. */
     @ArchTest
     static final ArchRule inbound_adapters_do_not_access_repositories = noClasses()
             .that()
@@ -295,7 +299,7 @@ public class ArchitectureTest {
             .resideInAPackage("..domain..repository..")
             .because("inbound adapters go through use cases, which own loading and saving aggregates");
 
-    /** Only the bootstrap module may declare @SpringBootApplication. */
+    /** Nur das Bootstrap-Modul darf @SpringBootApplication deklarieren. */
     @ArchTest
     static final ArchRule only_bootstrap_has_springbootapplication = noClasses()
             .that()

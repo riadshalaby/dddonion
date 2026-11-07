@@ -9,7 +9,7 @@ import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.Environment;
 
-/** Ensures the configured MariaDB database exists before Liquibase initializes. */
+/** Stellt sicher, dass die konfigurierte MariaDB-Datenbank existiert, bevor Liquibase initialisiert. */
 @Slf4j
 public class DatabaseBootstrapInitializer implements ApplicationContextInitializer<ConfigurableApplicationContext> {
 

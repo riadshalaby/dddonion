@@ -3,12 +3,12 @@ package net.rsworld.example.dddonion.application.context;
 import java.util.Objects;
 
 /**
- * Who invoked a use case and through which channel, passed explicitly alongside the command/query. Built by the inbound
- * adapter; the use case name itself is not part of it because it follows from the invoked use case.
+ * Wer einen Use Case über welchen Kanal aufgerufen hat, explizit neben Command/Query übergeben. Der eingehende Adapter
+ * baut sie; der Name des Use Cases gehört nicht dazu, weil er sich aus dem aufgerufenen Use Case ergibt.
  *
- * @param actorType business classification of the caller
- * @param channel inbound channel, e.g. {@code rest}
- * @param correlationId id correlating all log lines and events of one invocation
+ * @param actorType fachliche Einordnung des Aufrufers
+ * @param channel eingehender Kanal, z. B. {@code rest}
+ * @param correlationId Id, die alle Logzeilen und Events eines Aufrufs verknüpft
  */
 public record UseCaseMetadata(ActorType actorType, String channel, String correlationId) {
 

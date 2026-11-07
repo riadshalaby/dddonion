@@ -15,14 +15,14 @@ import org.springframework.data.relational.core.query.Update;
 import reactor.core.publisher.Mono;
 
 /**
- * R2DBC adapter for {@link OrderRepository}.
+ * R2DBC-Adapter für {@link OrderRepository}.
  *
- * <p>The version of an order is also the sequence of its domain events and advances with every transition
- * ({@code place()}, {@code pay()}), possibly several times between load and save. It is therefore stored as is, not
- * managed by Spring Data's {@code @Version}. An update only succeeds if the row still carries
- * {@link Order#loadedVersion()}; otherwise another writer changed the order in the meantime and the save fails with a
- * {@link ConcurrentAggregateUpdateException}, which also covers MariaDB's snapshot conflict (error 1020, see
- * {@link SnapshotConflicts}). The version is never adopted from the database row.
+ * <p>Die Version einer Order ist zugleich die Sequenz ihrer Domain Events und steigt mit jedem Übergang
+ * ({@code place()}, {@code pay()}), womöglich mehrmals zwischen Laden und Speichern. Sie wird daher unverändert
+ * gespeichert und nicht von Spring Datas {@code @Version} verwaltet. Ein Update gelingt nur, wenn die Zeile noch
+ * {@link Order#loadedVersion()} trägt; andernfalls hat ein anderer Schreiber die Order inzwischen geändert, und das
+ * Speichern scheitert mit einer {@link ConcurrentAggregateUpdateException}. Das deckt auch den Snapshot-Konflikt von
+ * MariaDB ab (Fehler 1020, siehe {@link SnapshotConflicts}). Die Version wird nie aus der Datenbankzeile übernommen.
  */
 public class OrderRepositoryAdapter implements OrderRepository {
 
@@ -36,8 +36,8 @@ public class OrderRepositoryAdapter implements OrderRepository {
 
     @Override
     public Mono<Order> save(Order order) {
-        // deferred: the row is built per subscription, so resubscribing never reuses a row mutated by an earlier
-        // attempt
+        // verzögert: Die Row wird pro Subscription neu gebaut, daher verwendet eine erneute Subscription nie eine Row,
+        // die ein früherer Versuch verändert hat
         return Mono.defer(() -> {
             OrderRow row = OrderMapper.toRow(order);
             return repo.existsById(row.getId())
@@ -54,7 +54,10 @@ public class OrderRepositoryAdapter implements OrderRepository {
         return repo.findById(id.value()).map(OrderMapper::toDomain);
     }
 
-    /** {@code UPDATE ... WHERE id = ? AND version = loadedVersion}; no matched row means a concurrent change. */
+    /**
+     * {@code UPDATE ... WHERE id = ? AND version = loadedVersion}; keine passende Zeile bedeutet eine nebenläufige
+     * Änderung.
+     */
     private Mono<OrderRow> update(Order order, OrderRow row) {
         return template.update(OrderRow.class)
                 .matching(query(where("id").is(row.getId()).and("version").is(order.loadedVersion())))
